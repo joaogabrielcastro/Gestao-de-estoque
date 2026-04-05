@@ -1,0 +1,17 @@
+{
+  "name": "gestao-estoque",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @gestao/shared && npm run build -w @gestao/api && npm run build -w @gestao/web",
+    "dev": "echo Run: npm run dev:api and npm run dev:web in separate terminals",
+    "dev:api": "npm run dev -w @gestao/api",
+    "dev:web": "npm run dev -w @gestao/web",
+    "db:generate": "npm run db:generate -w @gestao/api",
+    "db:migrate": "npm run db:migrate -w @gestao/api",
+    "db:push": "npm run db:push -w @gestao/api"
+  }
+}

@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Sector {
+  A
+  B
+  C
+  D
+}
+
+enum PackUnit {
+  UN
+  CX
+  PAL
+}
+
+enum MovementType {
+  ENTRADA
+  SAIDA
+}
+
+model Client {
+  id        String   @id @default(uuid())
+  name      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inbounds  Inbound[]
+  outbounds Outbound[]
+}
+
+model Product {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inboundLines  InboundLine[]
+  outboundLines OutboundLine[]
+}
+
+model Inbound {
+  id              String   @id @default(uuid())
+  clientId        String
+  destinationCity String
+  supplierOrBrand String?
+  sector          Sector
+  createdAt       DateTime @default(now())
+
+  client   Client           @relation(fields: [clientId], references: [id])
+  invoices InboundInvoice[]
+  lines    InboundLine[]
+}
+
+model InboundInvoice {
+  id        String @id @default(uuid())
+  inboundId String
+  number    String
+
+  inbound Inbound @relation(fields: [inboundId], references: [id], onDelete: Cascade)
+
+  @@index([number])
+}
+
+model InboundLine {
+  id        String   @id @default(uuid())
+  inboundId String
+  productId String
+  quantity  Decimal  @db.Decimal(18, 4)
+  unit      PackUnit
+
+  inbound Inbound @relation(fields: [inboundId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}
+
+model Outbound {
+  id                String   @id @default(uuid())
+  clientId          String
+  exitInvoiceNumber String
+  withdrawalDate    DateTime
+  pickedUpBy        String
+  destination       String
+  createdAt         DateTime @default(now())
+
+  client Client         @relation(fields: [clientId], references: [id])
+  lines  OutboundLine[]
+
+  @@index([clientId])
+  @@index([exitInvoiceNumber])
+}
+
+model OutboundLine {
+  id         String   @id @default(uuid())
+  outboundId String
+  productId  String
+  quantity   Decimal  @db.Decimal(18, 4)
+  unit       PackUnit
+  sector     Sector
+
+  outbound Outbound @relation(fields: [outboundId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id])
+
+  @@index([productId])
+}
+
+model StockMovement {
+  id            String       @id @default(uuid())
+  occurredAt    DateTime
+  type          MovementType
+  clientId      String
+  productId     String
+  quantity      Decimal      @db.Decimal(18, 4)
+  unit          PackUnit
+  sector        Sector
+  referenceType String
+  referenceId   String
+
+  @@index([occurredAt])
+  @@index([clientId, productId, sector, unit])
+  @@index([type])
+}
