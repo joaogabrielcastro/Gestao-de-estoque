@@ -48,6 +48,26 @@ npm run dev:web
 npm run build
 ```
 
+## Docker (PostgreSQL + API + Web)
+
+Na raiz do repositório:
+
+```bash
+docker compose up --build
+```
+
+- Web: `http://localhost:3000`
+- API: `http://localhost:4000/api` (health: `/api/health`)
+- Postgres: `localhost:5432` (usuário `gestao`, senha `gestao`, banco `gestao_estoque`)
+
+Na primeira subida, o container da API executa `prisma db push` automaticamente. Para produção, prefira migrations versionadas (`prisma migrate deploy`) em vez de `db push`.
+
+Se o front for acessado por outro host (não `localhost`), reconstrua a web com o build-arg correto, porque `NEXT_PUBLIC_*` é embutido no build:
+
+```bash
+docker compose build --build-arg NEXT_PUBLIC_API_URL=https://seu-dominio/api web
+```
+
 ## Pacotes
 
 | Pacote | Descrição |
