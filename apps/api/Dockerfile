@@ -32,5 +32,5 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 COPY apps/api/docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
-EXPOSE 4000
+EXPOSE 3011
 ENTRYPOINT ["/docker-entrypoint.sh"]

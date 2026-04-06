@@ -1,7 +1,7 @@
 export function apiUrl(path: string) {
   const base =
     process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
-    "http://localhost:4000/api";
+    "http://localhost:3011/api";
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }

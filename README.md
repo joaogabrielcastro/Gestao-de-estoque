@@ -15,7 +15,7 @@ Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App
    npm install
    ```
 
-2. API — copie `apps/api/.env.example` para `apps/api/.env` e ajuste `DATABASE_URL`, `PORT` (padrão `4000`) e `CORS_ORIGIN` (padrão `http://localhost:3000`).
+2. API — copie `apps/api/.env.example` para `apps/api/.env` e ajuste `DATABASE_URL`, `PORT` (padrão `3011`) e `CORS_ORIGIN` (padrão `http://localhost:3000`).
 
 3. Banco de dados:
 
@@ -25,7 +25,7 @@ Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App
 
    (ou `npm run db:migrate` após ajustar o nome da migration no fluxo interativo do Prisma.)
 
-4. Web — copie `apps/web/.env.example` para `apps/web/.env.local` se precisar mudar a URL da API. O padrão é `http://localhost:4000/api`.
+4. Web — copie `apps/web/.env.example` para `apps/web/.env.local` se precisar mudar a URL da API. O padrão é `http://localhost:3011/api`.
 
 ## Executar em desenvolvimento
 
@@ -39,7 +39,7 @@ npm run dev:api
 npm run dev:web
 ```
 
-- API: `http://localhost:4000/api/health`
+- API: `http://localhost:3011/api/health`
 - Web: `http://localhost:3000`
 
 ## Build de produção
@@ -57,7 +57,7 @@ docker compose up --build
 ```
 
 - Web: `http://localhost:3000`
-- API: `http://localhost:4000/api` (health: `/api/health`)
+- API: `http://localhost:3011/api` (health: `/api/health`)
 - Postgres: `localhost:5432` (usuário `gestao`, senha `gestao`, banco `gestao_estoque`)
 
 Na primeira subida, o container da API executa `prisma db push` automaticamente. Para produção, prefira migrations versionadas (`prisma migrate deploy`) em vez de `db push`.

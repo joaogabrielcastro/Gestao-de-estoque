@@ -35,7 +35,7 @@ export default async function DashboardPage() {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
         Não foi possível carregar o dashboard. Confira se a API está rodando
-        (porta 4000) e se{" "}
+        (porta 3011) e se{" "}
         <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">
           NEXT_PUBLIC_API_URL
         </code>{" "}

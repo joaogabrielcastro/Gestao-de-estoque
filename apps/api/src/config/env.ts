@@ -3,7 +3,7 @@ import "dotenv/config";
 
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
-  PORT: z.coerce.number().default(4000),
+  PORT: z.coerce.number().default(3011),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
 });
 

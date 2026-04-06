@@ -18,7 +18,7 @@ COPY packages/shared ./packages/shared
 COPY apps/web ./apps/web
 COPY apps/api/package.json ./apps/api/package.json
 
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api
+ARG NEXT_PUBLIC_API_URL=http://localhost:3011/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 
