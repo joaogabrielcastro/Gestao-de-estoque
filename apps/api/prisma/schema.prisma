@@ -25,6 +25,12 @@ enum MovementType {
   SAIDA
 }
 
+enum LoadStatus {
+  ARMAZENADA
+  SEPARADA
+  RETIRADA
+}
+
 model Client {
   id        String   @id @default(uuid())
   name      String
@@ -51,21 +57,29 @@ model Inbound {
   destinationCity String
   supplierOrBrand String?
   sector          Sector
+  notes           String?
+  status          LoadStatus @default(ARMAZENADA)
   createdAt       DateTime @default(now())
 
   client   Client           @relation(fields: [clientId], references: [id])
   invoices InboundInvoice[]
   lines    InboundLine[]
+
+  @@index([clientId])
 }
 
 model InboundInvoice {
-  id        String @id @default(uuid())
-  inboundId String
-  number    String
+  id               String @id @default(uuid())
+  inboundId        String
+  clientId         String?
+  number           String
+  numberNormalized String?
 
   inbound Inbound @relation(fields: [inboundId], references: [id], onDelete: Cascade)
 
   @@index([number])
+  @@index([clientId, numberNormalized])
+  @@unique([clientId, numberNormalized])
 }
 
 model InboundLine {
@@ -79,6 +93,7 @@ model InboundLine {
   product Product @relation(fields: [productId], references: [id])
 
   @@index([productId])
+  @@index([inboundId])
 }
 
 model Outbound {
@@ -88,6 +103,7 @@ model Outbound {
   withdrawalDate    DateTime
   pickedUpBy        String
   destination       String
+  notes             String?
   createdAt         DateTime @default(now())
 
   client Client         @relation(fields: [clientId], references: [id])
@@ -109,6 +125,7 @@ model OutboundLine {
   product  Product  @relation(fields: [productId], references: [id])
 
   @@index([productId])
+  @@index([outboundId])
 }
 
 model StockMovement {
@@ -124,6 +141,22 @@ model StockMovement {
   referenceId   String
 
   @@index([occurredAt])
+  @@index([clientId, productId, occurredAt])
   @@index([clientId, productId, sector, unit])
   @@index([type])
+}
+
+model StockBalance {
+  id        String   @id @default(uuid())
+  clientId  String
+  productId String
+  sector    Sector
+  unit      PackUnit
+  quantity  Decimal  @db.Decimal(18, 4)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, productId, sector, unit])
+  @@index([clientId, productId])
+  @@index([sector, unit])
 }

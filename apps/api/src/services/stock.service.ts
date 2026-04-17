@@ -1,4 +1,4 @@
-import { MovementType, PackUnit, Prisma, Sector } from "@prisma/client";
+import { PackUnit, Prisma, Sector } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 
 export async function getBalance(
@@ -7,18 +7,13 @@ export async function getBalance(
   sector: Sector,
   unit: PackUnit
 ): Promise<Prisma.Decimal> {
-  const rows = await prisma.stockMovement.findMany({
-    where: { clientId, productId, sector, unit },
+  const row = await prisma.stockBalance.findUnique({
+    where: {
+      clientId_productId_sector_unit: { clientId, productId, sector, unit },
+    },
+    select: { quantity: true },
   });
-  let sum = new Prisma.Decimal(0);
-  for (const r of rows) {
-    const q = new Prisma.Decimal(r.quantity);
-    sum =
-      r.type === MovementType.ENTRADA
-        ? sum.add(q)
-        : sum.sub(q);
-  }
-  return sum;
+  return row?.quantity ?? new Prisma.Decimal(0);
 }
 
 export async function assertOutboundLinesAvailable(
@@ -39,9 +34,10 @@ export async function assertOutboundLinesAvailable(
     );
     if (balance.lt(line.quantity)) {
       const err = new Error(
-        `Estoque insuficiente para produto ${line.productId} no setor ${line.sector} (${line.unit}). Disponível: ${balance.toString()}, solicitado: ${line.quantity.toString()}`
+        `Estoque insuficiente para produto ${line.productId} no setor ${line.sector} (${line.unit}). Disponível ${balance.toString()} | Solicitado ${line.quantity.toString()}`
       );
-      (err as { status?: number }).status = 409;
+      (err as { status?: number; code?: string }).status = 409;
+      (err as { status?: number; code?: string }).code = "INSUFFICIENT_STOCK";
       throw err;
     }
   }

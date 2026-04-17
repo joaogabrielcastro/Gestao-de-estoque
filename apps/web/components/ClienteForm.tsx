@@ -2,10 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useToast } from "@/components/ui/ToastProvider";
+import { readApiErrorMessage } from "@/lib/api-error";
 import { apiUrl } from "@/lib/api";
+import { Spinner } from "@/components/ui/Spinner";
 
 export function ClienteForm() {
   const router = useRouter();
+  const { showToast } = useToast();
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -21,13 +25,15 @@ export function ClienteForm() {
         body: JSON.stringify({ name }),
       });
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.message || res.statusText);
+        throw new Error(await readApiErrorMessage(res));
       }
       setName("");
+      showToast("success", "Cliente cadastrado.");
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro");
+      const msg = err instanceof Error ? err.message : "Erro";
+      setError(msg);
+      showToast("error", msg);
     } finally {
       setLoading(false);
     }
@@ -43,7 +49,7 @@ export function ClienteForm() {
           id="nome"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-900"
+          className="rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm"
           placeholder="Nome"
           required
         />
@@ -51,12 +57,13 @@ export function ClienteForm() {
       <button
         type="submit"
         disabled={loading}
-        className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+        className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
       >
+        {loading && <Spinner className="h-4 w-4 border-white" />}
         {loading ? "Salvando…" : "Adicionar"}
       </button>
       {error && (
-        <p className="w-full text-sm text-red-600 dark:text-red-400">{error}</p>
+        <p className="w-full text-sm text-red-600">{error}</p>
       )}
     </form>
   );

@@ -6,8 +6,8 @@ export const dashboardRouter = Router();
 
 dashboardRouter.get(
   "/summary",
-  asyncHandler(async (_req, res) => {
-    const data = await getDashboardSummary();
+  asyncHandler(async (req, res) => {
+    const data = await getDashboardSummary(req.query);
     res.json(data);
   })
 );

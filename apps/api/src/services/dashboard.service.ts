@@ -1,5 +1,6 @@
 import { MovementType, PackUnit, Sector } from "@prisma/client";
 import { Prisma } from "@prisma/client";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
 
 type BalanceKey = `${string}|${string}|${Sector}|${PackUnit}`;
@@ -13,24 +14,36 @@ function movementKey(
   return `${clientId}|${productId}|${sector}|${unit}`;
 }
 
-/** Agrega saldos a partir das movimentações (piloto). */
+/** Agrega saldos a partir da tabela materializada de saldos. */
 export async function computeBalances() {
-  const movements = await prisma.stockMovement.findMany();
+  const balancesRows = await prisma.stockBalance.findMany({
+    where: {
+      quantity: { gt: new Prisma.Decimal(0) },
+    },
+  });
   const balances = new Map<BalanceKey, Prisma.Decimal>();
 
-  for (const m of movements) {
-    const k = movementKey(m.clientId, m.productId, m.sector, m.unit);
-    const q = new Prisma.Decimal(m.quantity);
-    const prev = balances.get(k) ?? new Prisma.Decimal(0);
-    const next =
-      m.type === MovementType.ENTRADA ? prev.add(q) : prev.sub(q);
-    balances.set(k, next);
+  for (const row of balancesRows) {
+    const k = movementKey(row.clientId, row.productId, row.sector, row.unit);
+    balances.set(k, new Prisma.Decimal(row.quantity));
   }
 
-  return { movements, balances };
+  return { balances };
 }
 
-export async function getDashboardSummary() {
+const dashboardFilterSchema = z.object({
+  period: z.enum(["7d", "30d", "month"]).default("7d"),
+});
+
+function getFromDate(period: "7d" | "30d" | "month") {
+  const now = new Date();
+  if (period === "7d") return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  if (period === "30d") return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+}
+
+export async function getDashboardSummary(query: unknown) {
+  const f = dashboardFilterSchema.parse(query);
   const { balances } = await computeBalances();
 
   const totalByUnit: Record<PackUnit, Prisma.Decimal> = {
@@ -91,6 +104,49 @@ export async function getDashboardSummary() {
     bs[unit] = bs[unit].add(qty);
   }
 
+  const fromDate = getFromDate(f.period);
+  const periodMovements = await prisma.stockMovement.findMany({
+    where: { occurredAt: { gte: fromDate } },
+  });
+  const activeLoads = await prisma.inbound.count({
+    where: { status: { not: "RETIRADA" } },
+  });
+  const topClientByVolumeMap = new Map<string, number>();
+  const topSectorByVolumeMap = new Map<Sector, number>();
+
+  for (const m of periodMovements) {
+    const q = Number(m.quantity);
+    topClientByVolumeMap.set(
+      m.clientId,
+      (topClientByVolumeMap.get(m.clientId) ?? 0) + q
+    );
+    topSectorByVolumeMap.set(
+      m.sector,
+      (topSectorByVolumeMap.get(m.sector) ?? 0) + q
+    );
+  }
+
+  let topClientId: string | null = null;
+  let topClientVolume = 0;
+  for (const [clientId, volume] of topClientByVolumeMap.entries()) {
+    if (volume > topClientVolume) {
+      topClientVolume = volume;
+      topClientId = clientId;
+    }
+  }
+
+  let topSector: Sector | null = null;
+  let topSectorVolume = 0;
+  for (const [sector, volume] of topSectorByVolumeMap.entries()) {
+    if (volume > topSectorVolume) {
+      topSectorVolume = volume;
+      topSector = sector;
+    }
+  }
+
+  const topClientName =
+    (topClientId ? clientName.get(topClientId) : null) ?? "Sem dados";
+
   const recentInbounds = await prisma.inbound.findMany({
     take: 10,
     orderBy: { createdAt: "desc" },
@@ -104,6 +160,21 @@ export async function getDashboardSummary() {
   });
 
   return {
+    period: f.period,
+    periodFrom: fromDate.toISOString(),
+    executive: {
+      activeLoads,
+      topClientByVolume: {
+        clientId: topClientId,
+        clientName: topClientName,
+        volume: topClientVolume,
+      },
+      busiestSector: {
+        sector: topSector,
+        volume: topSectorVolume,
+      },
+      movementCountInPeriod: periodMovements.length,
+    },
     totalByUnit: {
       UN: totalByUnit.UN.toString(),
       CX: totalByUnit.CX.toString(),

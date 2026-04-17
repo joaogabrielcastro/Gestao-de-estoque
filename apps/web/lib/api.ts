@@ -1,7 +1,14 @@
-export function apiUrl(path: string) {
-  const base =
-    process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ||
+function resolveApiBase(): string {
+  const isServer = typeof window === "undefined";
+  const raw =
+    (isServer && process.env.API_URL) ||
+    process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:3011/api";
+  return raw.replace(/\/$/, "");
+}
+
+export function apiUrl(path: string) {
+  const base = resolveApiBase();
   const p = path.startsWith("/") ? path : `/${path}`;
   return `${base}${p}`;
 }

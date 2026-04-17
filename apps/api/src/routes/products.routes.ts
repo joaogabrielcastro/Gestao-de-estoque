@@ -6,8 +6,8 @@ export const productsRouter = Router();
 
 productsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const data = await products.listProducts();
+  asyncHandler(async (req, res) => {
+    const data = await products.listProducts(req.query);
     res.json(data);
   })
 );
@@ -37,5 +37,13 @@ productsRouter.patch(
   asyncHandler(async (req, res) => {
     const row = await products.updateProduct(String(req.params.id), req.body);
     res.json(row);
+  })
+);
+
+productsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await products.deleteProduct(String(req.params.id));
+    res.status(204).send();
   })
 );

@@ -1,8 +1,23 @@
 import { fetchJson } from "@/lib/api";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
 type Summary = {
+  period: "7d" | "30d" | "month";
+  periodFrom: string;
+  executive: {
+    activeLoads: number;
+    topClientByVolume: {
+      clientName: string;
+      volume: number;
+    };
+    busiestSector: {
+      sector: string | null;
+      volume: number;
+    };
+    movementCountInPeriod: number;
+  };
   totalByUnit: { UN: string; CX: string; PAL: string };
   byClient: Array<{
     clientName: string;
@@ -27,28 +42,65 @@ type Summary = {
   }>;
 };
 
-export default async function DashboardPage() {
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ period?: "7d" | "30d" | "month" }>;
+}) {
+  const sp = await searchParams;
+  const period = sp.period ?? "7d";
   let data: Summary;
   try {
-    data = await fetchJson<Summary>("/dashboard/summary");
+    data = await fetchJson<Summary>(`/dashboard/summary?period=${period}`);
   } catch {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100">
-        Não foi possível carregar o dashboard. Confira se a API está rodando
-        (porta 3011) e se{" "}
-        <code className="rounded bg-amber-100 px-1 dark:bg-amber-900">
+      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
+        Não foi possível carregar o dashboard. Confira se a API está no ar (por
+        padrão porta <strong>3011</strong>), se{" "}
+        <code className="rounded bg-amber-100 px-1">
           NEXT_PUBLIC_API_URL
         </code>{" "}
-        está correto.
+        aponta para <code className="rounded bg-amber-100 px-1">…/api</code> e,
+        se estiver usando Docker para a web, se{" "}
+        <code className="rounded bg-amber-100 px-1">API_URL</code>{" "}
+        aponta para o serviço interno (ex.: <code className="rounded bg-amber-100 px-1">http://api:3011/api</code>).
       </div>
     );
   }
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-        Dashboard
-      </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="page-title">Dashboard</h1>
+        <form className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white p-2 text-sm">
+          <select name="period" defaultValue={period} className="rounded border border-zinc-300 px-2 py-1">
+            <option value="7d">Últimos 7 dias</option>
+            <option value="30d">Últimos 30 dias</option>
+            <option value="month">Mês atual</option>
+          </select>
+          <button className="rounded bg-red-600 px-3 py-1 text-white">Aplicar</button>
+        </form>
+      </div>
+      <section className="grid gap-3 sm:grid-cols-4">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="text-xs uppercase text-zinc-500">Cargas ativas</div>
+          <div className="text-2xl font-semibold">{data.executive.activeLoads}</div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="text-xs uppercase text-zinc-500">Cliente mais volume</div>
+          <div className="font-semibold">{data.executive.topClientByVolume.clientName}</div>
+          <div className="text-xs text-zinc-600">{data.executive.topClientByVolume.volume.toFixed(2)} no período</div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="text-xs uppercase text-zinc-500">Setor mais carregado</div>
+          <div className="text-2xl font-semibold">{data.executive.busiestSector.sector ?? "—"}</div>
+          <div className="text-xs text-zinc-600">{data.executive.busiestSector.volume.toFixed(2)} no período</div>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <div className="text-xs uppercase text-zinc-500">Movimentações período</div>
+          <div className="text-2xl font-semibold">{data.executive.movementCountInPeriod}</div>
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-2 text-sm font-medium text-zinc-500">
@@ -58,7 +110,7 @@ export default async function DashboardPage() {
           {(["UN", "CX", "PAL"] as const).map((u) => (
             <div
               key={u}
-              className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
+              className="rounded-lg border border-zinc-200 bg-white p-4"
             >
               <div className="text-xs uppercase text-zinc-500">{u}</div>
               <div className="text-2xl font-semibold tabular-nums">
@@ -81,10 +133,10 @@ export default async function DashboardPage() {
             {data.byClient.map((c) => (
               <li
                 key={c.clientName}
-                className="rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+              className="rounded-md border border-zinc-200 px-3 py-2"
               >
                 <span className="font-medium">{c.clientName}</span>
-                <span className="ml-2 text-zinc-600 dark:text-zinc-400">
+              <span className="ml-2 text-zinc-600">
                   UN {c.byUnit.UN} · CX {c.byUnit.CX} · PAL {c.byUnit.PAL}
                 </span>
               </li>
@@ -97,10 +149,10 @@ export default async function DashboardPage() {
             {Object.entries(data.bySector).map(([s, u]) => (
               <li
                 key={s}
-                className="rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+                className="rounded-md border border-zinc-200 px-3 py-2"
               >
                 <span className="font-mono font-medium">Setor {s}</span>
-                <span className="ml-2 text-zinc-600 dark:text-zinc-400">
+                <span className="ml-2 text-zinc-600">
                   UN {u.UN} · CX {u.CX} · PAL {u.PAL}
                 </span>
               </li>
@@ -118,16 +170,19 @@ export default async function DashboardPage() {
             {data.recentInbounds.map((e) => (
               <li
                 key={e.id}
-                className="rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+                className="rounded-md border border-zinc-200 px-3 py-2"
               >
                 <div className="font-medium">{e.client.name}</div>
-                <div className="text-zinc-600 dark:text-zinc-400">
+                <div className="text-zinc-600">
                   {e.destinationCity} · setor {e.sector} ·{" "}
                   {new Date(e.createdAt).toLocaleString("pt-BR")}
                 </div>
                 <div className="text-xs text-zinc-500">
                   NFs: {e.invoices.map((i) => i.number).join(", ")}
                 </div>
+                <Link href={`/entradas/${e.id}/folha`} className="text-xs text-red-700 underline">
+                  Abrir folha
+                </Link>
               </li>
             ))}
           </ul>
@@ -140,10 +195,10 @@ export default async function DashboardPage() {
             {data.recentOutbounds.map((o) => (
               <li
                 key={o.id}
-                className="rounded-md border border-zinc-200 px-3 py-2 dark:border-zinc-800"
+                className="rounded-md border border-zinc-200 px-3 py-2"
               >
                 <div className="font-medium">{o.client.name}</div>
-                <div className="text-zinc-600 dark:text-zinc-400">
+                <div className="text-zinc-600">
                   NF saída {o.exitInvoiceNumber} · {o.pickedUpBy} →{" "}
                   {o.destination}
                 </div>

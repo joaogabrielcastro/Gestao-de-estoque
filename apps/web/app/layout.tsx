@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -26,10 +27,12 @@ export default function RootLayout({
   return (
     <html lang="pt-BR">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} min-h-screen antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} min-h-screen bg-zinc-50 antialiased`}
       >
-        <Nav />
-        <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        <ToastProvider>
+          <Nav />
+          <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+        </ToastProvider>
       </body>
     </html>
   );

@@ -6,8 +6,8 @@ export const stockRouter = Router();
 
 stockRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const data = await getCurrentStockSnapshot();
+  asyncHandler(async (req, res) => {
+    const data = await getCurrentStockSnapshot(req.query);
     res.json(data);
   })
 );

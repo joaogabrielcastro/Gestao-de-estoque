@@ -13,7 +13,15 @@ function toCsv(headers: string[], rows: string[][]) {
 }
 
 export async function reportStockCurrentCsv() {
-  const rows = await getCurrentStockSnapshot();
+  const rows: Awaited<ReturnType<typeof getCurrentStockSnapshot>>["items"] = [];
+  let page = 1;
+  const pageSize = 1000;
+  while (true) {
+    const payload = await getCurrentStockSnapshot({ page, pageSize });
+    rows.push(...payload.items);
+    if (page >= payload.totalPages) break;
+    page += 1;
+  }
   return toCsv(
     ["cliente", "produto", "setor", "unidade", "quantidade"],
     rows.map((r) => [
@@ -27,10 +35,21 @@ export async function reportStockCurrentCsv() {
 }
 
 export async function reportMovementsCsv() {
-  const movements = await prisma.stockMovement.findMany({
-    orderBy: { occurredAt: "desc" },
-    take: 10_000,
-  });
+  const movements: Awaited<
+    ReturnType<typeof prisma.stockMovement.findMany>
+  > = [];
+  let page = 0;
+  const pageSize = 2000;
+  while (true) {
+    const chunk = await prisma.stockMovement.findMany({
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }],
+      skip: page * pageSize,
+      take: pageSize,
+    });
+    if (chunk.length === 0) break;
+    movements.push(...chunk);
+    page += 1;
+  }
   const clients = await prisma.client.findMany();
   const products = await prisma.product.findMany();
   const cm = new Map(clients.map((c) => [c.id, c.name]));
@@ -52,7 +71,15 @@ export async function reportMovementsCsv() {
 }
 
 export async function reportStockByClientCsv() {
-  const snapshot = await getCurrentStockSnapshot();
+  const snapshot: Awaited<ReturnType<typeof getCurrentStockSnapshot>>["items"] = [];
+  let page = 1;
+  const pageSize = 1000;
+  while (true) {
+    const payload = await getCurrentStockSnapshot({ page, pageSize });
+    snapshot.push(...payload.items);
+    if (page >= payload.totalPages) break;
+    page += 1;
+  }
   const grouped = new Map<
     string,
     { clientName: string; lines: typeof snapshot }

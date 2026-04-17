@@ -1,99 +1,336 @@
-import { MovementType, Prisma } from "@prisma/client";
-import { createInboundSchema } from "@gestao/shared";
+import { LoadStatus, MovementType, Prisma } from "@prisma/client";
+import { createInboundSchema, updateInboundStatusSchema } from "@gestao/shared";
+import { z } from "zod";
 import { prisma } from "../lib/prisma";
-
-function assertPositiveQty(q: Prisma.Decimal, label: string) {
-  if (q.lte(0)) {
-    const err = new Error(`Quantidade deve ser maior que zero (${label})`);
-    (err as { status?: number }).status = 400;
-    throw err;
-  }
-}
+import { assertPositiveQty } from "../domain/stock-policy";
+import {
+  assertNoDuplicateInvoiceNumbers,
+  normalizeInvoiceNumber,
+  sanitizeInvoiceNumbers,
+} from "../domain/invoice-policy";
+import {
+  aggregateDeltas,
+  decrementBalancesWithGuard,
+  incrementBalances,
+} from "../repositories/stock-balance.repository";
 
 export async function createInbound(body: unknown) {
   const data = createInboundSchema.parse(body);
   const occurredAt = new Date();
 
-  return prisma.$transaction(async (tx) => {
-    const inbound = await tx.inbound.create({
-      data: {
-        clientId: data.clientId,
-        destinationCity: data.destinationCity,
-        supplierOrBrand: data.supplierOrBrand,
-        sector: data.sector,
-        invoices: {
-          create: data.invoiceNumbers.map((number) => ({ number })),
-        },
-        lines: {
-          create: data.lines.map((line) => {
-            const quantity = new Prisma.Decimal(line.quantity);
-            assertPositiveQty(quantity, line.productId);
-            return {
-              productId: line.productId,
-              quantity,
-              unit: line.unit,
-            };
-          }),
-        },
-      },
-      include: {
-        invoices: true,
-        lines: { include: { product: true } },
-        client: true,
-      },
-    });
+  const invoiceNumbers = sanitizeInvoiceNumbers(data.invoiceNumbers);
+  assertNoDuplicateInvoiceNumbers(invoiceNumbers);
 
-    for (const line of inbound.lines) {
-      await tx.stockMovement.create({
+  const lineDecimals = data.lines.map((line) => {
+    const quantity = new Prisma.Decimal(line.quantity);
+    assertPositiveQty(quantity, line.productId);
+    return {
+      productId: line.productId,
+      quantity,
+      unit: line.unit,
+    };
+  });
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const inbound = await tx.inbound.create({
         data: {
-          occurredAt,
-          type: MovementType.ENTRADA,
           clientId: data.clientId,
-          productId: line.productId,
-          quantity: line.quantity,
-          unit: line.unit,
+          destinationCity: data.destinationCity,
+          supplierOrBrand: data.supplierOrBrand,
+          notes: data.notes,
           sector: data.sector,
-          referenceType: "INBOUND",
-          referenceId: inbound.id,
+          invoices: {
+            create: invoiceNumbers.map((number) => ({
+              number,
+              clientId: data.clientId,
+              numberNormalized: normalizeInvoiceNumber(number),
+            })),
+          },
+          lines: {
+            create: lineDecimals.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+              unit: line.unit,
+            })),
+          },
+        },
+        include: {
+          invoices: true,
+          lines: { include: { product: true } },
+          client: true,
         },
       });
-    }
 
-    return inbound;
-  });
+      await Promise.all(
+        inbound.lines.map((line) =>
+          tx.stockMovement.create({
+            data: {
+              occurredAt,
+              type: MovementType.ENTRADA,
+              clientId: data.clientId,
+              productId: line.productId,
+              quantity: line.quantity,
+              unit: line.unit,
+              sector: data.sector,
+              referenceType: "INBOUND",
+              referenceId: inbound.id,
+            },
+          })
+        )
+      );
+
+      const inboundDeltas = aggregateDeltas(
+        inbound.lines.map((line) => ({
+          clientId: data.clientId,
+          productId: line.productId,
+          sector: data.sector,
+          unit: line.unit,
+          quantity: new Prisma.Decimal(line.quantity),
+        }))
+      );
+      await incrementBalances(tx, inboundDeltas);
+
+      return inbound;
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "P2002") {
+      const conflict = new Error(
+        "Uma ou mais NFs informadas já estão registradas para este cliente."
+      );
+      (conflict as { status?: number }).status = 409;
+      throw conflict;
+    }
+    throw err;
+  }
 }
 
-export async function listInbounds(filters: {
-  clientId?: string;
-  nf?: string;
-  productId?: string;
-}) {
-  return prisma.inbound.findMany({
-    where: {
-      ...(filters.clientId ? { clientId: filters.clientId } : {}),
-      ...(filters.nf
-        ? { invoices: { some: { number: { contains: filters.nf, mode: "insensitive" } } } }
-        : {}),
-      ...(filters.productId
-        ? { lines: { some: { productId: filters.productId } } }
-        : {}),
-    },
-    orderBy: { createdAt: "desc" },
-    include: {
-      client: true,
-      invoices: true,
-      lines: { include: { product: true } },
-    },
+const inboundListFilterSchema = z.object({
+  clientId: z.string().uuid().optional(),
+  nf: z.string().optional(),
+  productId: z.string().uuid().optional(),
+  status: z.nativeEnum(LoadStatus).optional(),
+  q: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(10),
+});
+
+export async function listInbounds(filters: unknown) {
+  const f = inboundListFilterSchema.parse(filters);
+  const where = {
+    ...(f.clientId ? { clientId: f.clientId } : {}),
+    ...(f.nf
+      ? { invoices: { some: { number: { contains: f.nf, mode: "insensitive" as const } } } }
+      : {}),
+    ...(f.productId ? { lines: { some: { productId: f.productId } } } : {}),
+    ...(f.status ? { status: f.status } : {}),
+    ...(f.q
+      ? {
+          OR: [
+            { destinationCity: { contains: f.q, mode: "insensitive" as const } },
+            { supplierOrBrand: { contains: f.q, mode: "insensitive" as const } },
+            { invoices: { some: { number: { contains: f.q, mode: "insensitive" as const } } } },
+            { lines: { some: { product: { name: { contains: f.q, mode: "insensitive" as const } } } } },
+            { client: { name: { contains: f.q, mode: "insensitive" as const } } },
+          ],
+        }
+      : {}),
+  };
+
+  const [items, total] = await Promise.all([
+    prisma.inbound.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: (f.page - 1) * f.pageSize,
+      take: f.pageSize,
+      include: {
+        client: true,
+        invoices: true,
+        lines: { include: { product: true } },
+      },
+    }),
+    prisma.inbound.count({ where }),
+  ]);
+
+  return {
+    items,
+    page: f.page,
+    pageSize: f.pageSize,
+    total,
+    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
+  };
+}
+
+export async function updateInboundStatus(id: string, body: unknown) {
+  const data = updateInboundStatusSchema.parse(body);
+  return prisma.inbound.update({
+    where: { id },
+    data: { status: data.status },
   });
 }
 
 export async function getInboundById(id: string) {
   return prisma.inbound.findUnique({
-    where: { id },
+    where: {
+      id,
+    },
     include: {
       client: true,
       invoices: true,
       lines: { include: { product: true } },
     },
   });
+}
+
+export async function deleteInbound(id: string) {
+  const existing = await prisma.inbound.findUnique({
+    where: { id },
+    include: { lines: true },
+  });
+  if (!existing) {
+    const err = new Error("Entrada não encontrada");
+    (err as { status?: number }).status = 404;
+    throw err;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    const oldDeltas = aggregateDeltas(
+      existing.lines.map((line) => ({
+        clientId: existing.clientId,
+        productId: line.productId,
+        sector: existing.sector,
+        unit: line.unit,
+        quantity: new Prisma.Decimal(line.quantity),
+      }))
+    );
+    await decrementBalancesWithGuard(tx, oldDeltas);
+
+    await tx.stockMovement.deleteMany({
+      where: { referenceType: "INBOUND", referenceId: id },
+    });
+
+    await tx.inbound.delete({ where: { id } });
+  });
+}
+
+export async function replaceInbound(id: string, body: unknown) {
+  const data = createInboundSchema.parse(body);
+  const occurredAt = new Date();
+
+  const existing = await prisma.inbound.findUnique({
+    where: { id },
+    include: { lines: true },
+  });
+  if (!existing) {
+    const err = new Error("Entrada não encontrada");
+    (err as { status?: number }).status = 404;
+    throw err;
+  }
+
+  const invoiceNumbers = sanitizeInvoiceNumbers(data.invoiceNumbers);
+  assertNoDuplicateInvoiceNumbers(invoiceNumbers);
+
+  const lineDecimals = data.lines.map((line) => {
+    const quantity = new Prisma.Decimal(line.quantity);
+    assertPositiveQty(quantity, line.productId);
+    return {
+      productId: line.productId,
+      quantity,
+      unit: line.unit,
+    };
+  });
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const oldDeltas = aggregateDeltas(
+        existing.lines.map((line) => ({
+          clientId: existing.clientId,
+          productId: line.productId,
+          sector: existing.sector,
+          unit: line.unit,
+          quantity: new Prisma.Decimal(line.quantity),
+        }))
+      );
+      await decrementBalancesWithGuard(tx, oldDeltas);
+
+      await tx.stockMovement.deleteMany({
+        where: { referenceType: "INBOUND", referenceId: id },
+      });
+
+      await tx.inboundLine.deleteMany({ where: { inboundId: id } });
+      await tx.inboundInvoice.deleteMany({ where: { inboundId: id } });
+
+      const inbound = await tx.inbound.update({
+        where: { id },
+        data: {
+          clientId: data.clientId,
+          destinationCity: data.destinationCity,
+          supplierOrBrand: data.supplierOrBrand,
+          notes: data.notes,
+          sector: data.sector,
+          invoices: {
+            create: invoiceNumbers.map((number) => ({
+              number,
+              clientId: data.clientId,
+              numberNormalized: normalizeInvoiceNumber(number),
+            })),
+          },
+          lines: {
+            create: lineDecimals.map((line) => ({
+              productId: line.productId,
+              quantity: line.quantity,
+              unit: line.unit,
+            })),
+          },
+        },
+        include: {
+          invoices: true,
+          lines: { include: { product: true } },
+          client: true,
+        },
+      });
+
+      await Promise.all(
+        inbound.lines.map((line) =>
+          tx.stockMovement.create({
+            data: {
+              occurredAt,
+              type: MovementType.ENTRADA,
+              clientId: data.clientId,
+              productId: line.productId,
+              quantity: line.quantity,
+              unit: line.unit,
+              sector: data.sector,
+              referenceType: "INBOUND",
+              referenceId: inbound.id,
+            },
+          })
+        )
+      );
+
+      const inboundDeltas = aggregateDeltas(
+        inbound.lines.map((line) => ({
+          clientId: data.clientId,
+          productId: line.productId,
+          sector: data.sector,
+          unit: line.unit,
+          quantity: new Prisma.Decimal(line.quantity),
+        }))
+      );
+      await incrementBalances(tx, inboundDeltas);
+
+      return inbound;
+    });
+  } catch (err) {
+    const code = (err as { code?: string }).code;
+    if (code === "P2002") {
+      const conflict = new Error(
+        "Uma ou mais NFs informadas já estão registradas para este cliente."
+      );
+      (conflict as { status?: number }).status = 409;
+      throw conflict;
+    }
+    throw err;
+  }
 }

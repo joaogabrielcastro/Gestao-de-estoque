@@ -29,8 +29,6 @@ COPY --from=builder /app/apps/api/package.json ./apps/api/package.json
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 
-COPY apps/api/docker-entrypoint.sh /docker-entrypoint.sh
-RUN chmod +x /docker-entrypoint.sh
-
 EXPOSE 3011
-ENTRYPOINT ["/docker-entrypoint.sh"]
+# Comando inline evita falhas no Windows quando scripts .sh são salvos com CRLF
+CMD ["sh", "-c", "cd /app/apps/api && npx prisma db push && exec node dist/index.js"]

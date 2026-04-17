@@ -6,8 +6,17 @@ export const outboundsRouter = Router();
 
 outboundsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const data = await outbound.listOutbounds();
+  asyncHandler(async (req, res) => {
+    const data = await outbound.listOutbounds({
+      clientId: req.query.clientId,
+      nf: req.query.nf,
+      productId: req.query.productId,
+      q: req.query.q,
+      from: req.query.from,
+      to: req.query.to,
+      page: req.query.page,
+      pageSize: req.query.pageSize,
+    });
     res.json(data);
   })
 );
@@ -29,5 +38,21 @@ outboundsRouter.get(
       return;
     }
     res.json(row);
+  })
+);
+
+outboundsRouter.put(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const data = await outbound.replaceOutbound(String(req.params.id), req.body);
+    res.json(data);
+  })
+);
+
+outboundsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await outbound.deleteOutbound(String(req.params.id));
+    res.status(204).send();
   })
 );

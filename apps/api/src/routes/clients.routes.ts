@@ -6,8 +6,8 @@ export const clientsRouter = Router();
 
 clientsRouter.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const data = await clients.listClients();
+  asyncHandler(async (req, res) => {
+    const data = await clients.listClients(req.query);
     res.json(data);
   })
 );
@@ -37,5 +37,13 @@ clientsRouter.patch(
   asyncHandler(async (req, res) => {
     const row = await clients.updateClient(String(req.params.id), req.body);
     res.json(row);
+  })
+);
+
+clientsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await clients.deleteClient(String(req.params.id));
+    res.status(204).send();
   })
 );

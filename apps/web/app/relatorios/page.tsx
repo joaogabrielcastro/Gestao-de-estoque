@@ -5,33 +5,47 @@ export const metadata = {
 };
 
 const downloads = [
-  { href: "/reports/stock.csv", label: "Estoque atual" },
-  { href: "/reports/movements.csv", label: "Movimentação de estoque" },
-  { href: "/reports/stock-by-client.csv", label: "Estoque por cliente" },
+  {
+    href: "/reports/stock.csv",
+    label: "Estoque atual",
+    description: "Saldo atual por cliente, produto, setor e unidade.",
+  },
+  {
+    href: "/reports/movements.csv",
+    label: "Movimentação de estoque",
+    description: "Histórico de entradas e saídas com data e referência.",
+  },
+  {
+    href: "/reports/stock-by-client.csv",
+    label: "Estoque por cliente",
+    description: "Resumo do estoque agrupado por cliente.",
+  },
 ];
 
 export default function RelatoriosPage() {
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">
-        Relatórios (CSV)
-      </h1>
-      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-        Os arquivos são gerados pela API. Certifique-se de que ela está em
-        execução.
+      <h1 className="page-title">Relatórios (CSV)</h1>
+      <p className="text-sm text-zinc-600">
+        Baixe os arquivos para compartilhar com o cliente e apoiar a apresentação do piloto.
       </p>
-      <ul className="space-y-3 text-sm">
+      <div className="grid gap-4 md:grid-cols-3">
         {downloads.map((d) => (
-          <li key={d.href}>
+          <article
+            key={d.href}
+            className="rounded-lg border border-zinc-200 bg-white p-4 shadow-sm"
+          >
+            <h2 className="text-base font-semibold text-zinc-900">{d.label}</h2>
+            <p className="mt-2 min-h-10 text-sm text-zinc-700">{d.description}</p>
             <a
               href={apiUrl(d.href)}
-              className="text-zinc-900 underline hover:no-underline dark:text-zinc-100"
+              className="mt-4 inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
             >
-              {d.label}
+              Baixar CSV
             </a>
-          </li>
+          </article>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }

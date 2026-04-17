@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 48" role="img" aria-label="Logo">
+  <text x="4" y="38" font-family="system-ui,Segoe UI,sans-serif" font-size="36" font-weight="800" font-style="italic" fill="#dc2626">A</text>
+  <text x="38" y="38" font-family="system-ui,Segoe UI,sans-serif" font-size="36" font-weight="800" font-style="italic" fill="#dc2626">B</text>
+  <rect x="38" y="40" width="72" height="6" rx="1" fill="#171717"/>
+</svg>
