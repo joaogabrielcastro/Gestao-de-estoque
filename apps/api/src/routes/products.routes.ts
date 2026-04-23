@@ -39,3 +39,11 @@ productsRouter.patch(
     res.json(row);
   })
 );
+
+productsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await products.deleteProduct(String(req.params.id));
+    res.status(204).send();
+  })
+);

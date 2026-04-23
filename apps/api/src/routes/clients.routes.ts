@@ -39,3 +39,11 @@ clientsRouter.patch(
     res.json(row);
   })
 );
+
+clientsRouter.delete(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    await clients.deleteClient(String(req.params.id));
+    res.status(204).send();
+  })
+);

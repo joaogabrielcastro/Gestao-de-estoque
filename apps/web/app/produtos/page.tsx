@@ -1,4 +1,5 @@
 import { ProdutoForm } from "@/components/ProdutoForm";
+import { ProdutosList } from "@/components/ProdutosList";
 import { fetchJson } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
@@ -23,16 +24,7 @@ export default async function ProdutosPage() {
         <p className="text-sm text-amber-700 dark:text-amber-300">{err}</p>
       )}
       <ProdutoForm />
-      <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
-        {products.length === 0 && (
-          <li className="px-4 py-6 text-sm text-zinc-500">Nenhum produto.</li>
-        )}
-        {products.map((p) => (
-          <li key={p.id} className="px-4 py-3 text-sm">
-            {p.name}
-          </li>
-        ))}
-      </ul>
+      <ProdutosList initialProducts={products} />
     </div>
   );
 }
