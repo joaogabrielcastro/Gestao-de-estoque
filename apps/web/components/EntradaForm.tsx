@@ -103,7 +103,7 @@ export function EntradaForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="max-w-2xl space-y-4">
+    <form onSubmit={onSubmit} className="w-full space-y-4">
       <p>
         <Link
           href="/entradas"
