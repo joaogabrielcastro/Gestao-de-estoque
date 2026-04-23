@@ -1,5 +1,5 @@
 import { MovementType, Prisma } from "@prisma/client";
-import { createOutboundSchema } from "@gestao/shared";
+import { createOutboundSchema } from "../schemas";
 import { prisma } from "../lib/prisma";
 import { assertOutboundLinesAvailable } from "./stock.service";
 

@@ -1,5 +1,5 @@
 import { MovementType, Prisma } from "@prisma/client";
-import { createInboundSchema } from "@gestao/shared";
+import { createInboundSchema } from "../schemas";
 import { prisma } from "../lib/prisma";
 
 function assertPositiveQty(q: Prisma.Decimal, label: string) {
