@@ -4,7 +4,10 @@ function resolveApiBase(): string {
     (isServer && process.env.API_URL) ||
     process.env.NEXT_PUBLIC_API_URL ||
     "http://localhost:3011/api";
-  return raw.replace(/\/$/, "");
+  const normalizedBase = raw.replace(/\/$/, "");
+  return normalizedBase.endsWith("/api")
+    ? normalizedBase
+    : `${normalizedBase}/api`;
 }
 
 export function apiUrl(path: string) {

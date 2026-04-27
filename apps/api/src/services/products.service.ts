@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { createProductSchema } from "@gestao/shared";
+import { createProductSchema } from "../schemas";
 import { prisma } from "../lib/prisma";
 
 const updateSchema = z.object({

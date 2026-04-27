@@ -8,12 +8,36 @@ import { requestContext } from "./middleware/requestContext";
 import { requestLogger } from "./middleware/requestLogger";
 import { apiRouter } from "./routes";
 
+function normalizeOrigin(value: string) {
+  const cleaned = value.trim().replace(/^["']|["']$/g, "").replace(/\/$/, "");
+  try {
+    return new URL(cleaned).origin;
+  } catch {
+    return cleaned;
+  }
+}
+
 export function createApp() {
   const app = express();
   app.use(helmet());
   app.use(requestContext);
   app.use(requestLogger);
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  const allowedOrigins = env.CORS_ORIGIN.split(",")
+    .map((origin) => normalizeOrigin(origin))
+    .filter(Boolean);
+
+  app.use(
+    cors({
+      origin(origin, callback) {
+        if (allowedOrigins.includes("*")) return callback(null, true);
+        if (allowedOrigins.length === 0) return callback(null, true);
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(normalizeOrigin(origin))) return callback(null, true);
+        return callback(new Error("Origin não permitida pelo CORS"));
+      },
+      credentials: true,
+    }),
+  );
   app.use(
     "/api",
     rateLimit({
