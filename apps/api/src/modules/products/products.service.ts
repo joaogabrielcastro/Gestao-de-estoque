@@ -1,4 +1,4 @@
-import { createProductSchema } from "@gestao/shared";
+import { createProductSchema } from "../../schemas";
 import { z } from "zod";
 import * as repo from "./products.repository";
 

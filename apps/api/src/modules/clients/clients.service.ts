@@ -1,4 +1,4 @@
-import { createClientSchema } from "@gestao/shared";
+import { createClientSchema } from "../../schemas";
 import { z } from "zod";
 import * as repo from "./clients.repository";
 

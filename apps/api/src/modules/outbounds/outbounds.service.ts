@@ -1,5 +1,5 @@
 import { Prisma } from "@prisma/client";
-import { createOutboundSchema } from "@gestao/shared";
+import { createOutboundSchema } from "../../schemas";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { assertPositiveQty } from "../../domain/stock-policy";
