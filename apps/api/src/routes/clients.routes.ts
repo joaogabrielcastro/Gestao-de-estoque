@@ -1,49 +1,30 @@
 import { Router } from "express";
-import * as clients from "../services/clients.service";
+import { clientsController } from "../modules/clients";
 import { asyncHandler } from "../utils/asyncHandler";
 
 export const clientsRouter = Router();
 
 clientsRouter.get(
   "/",
-  asyncHandler(async (req, res) => {
-    const data = await clients.listClients(req.query);
-    res.json(data);
-  })
+  asyncHandler(clientsController.listClients)
 );
 
 clientsRouter.post(
   "/",
-  asyncHandler(async (req, res) => {
-    const data = await clients.createClient(req.body);
-    res.status(201).json(data);
-  })
+  asyncHandler(clientsController.createClient)
 );
 
 clientsRouter.get(
   "/:id",
-  asyncHandler(async (req, res) => {
-    const row = await clients.getClient(String(req.params.id));
-    if (!row) {
-      res.status(404).json({ message: "Cliente não encontrado" });
-      return;
-    }
-    res.json(row);
-  })
+  asyncHandler(clientsController.getClient)
 );
 
 clientsRouter.patch(
   "/:id",
-  asyncHandler(async (req, res) => {
-    const row = await clients.updateClient(String(req.params.id), req.body);
-    res.json(row);
-  })
+  asyncHandler(clientsController.updateClient)
 );
 
 clientsRouter.delete(
   "/:id",
-  asyncHandler(async (req, res) => {
-    await clients.deleteClient(String(req.params.id));
-    res.status(204).send();
-  })
+  asyncHandler(clientsController.deleteClient)
 );

@@ -4,19 +4,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { readApiErrorMessage } from "@/lib/api-error";
-import { apiUrl } from "@/lib/api";
+import { requestJson } from "@/lib/api";
+import { loadCatalogs, type CatalogItem } from "@/lib/catalogs";
 import { Spinner } from "@/components/ui/Spinner";
 
-type Client = { id: string; name: string };
-type Product = { id: string; name: string };
-type Paginated<T> = {
-  items: T[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
+type Client = CatalogItem;
+type Product = CatalogItem;
 
 type Line = {
   productId: string;
@@ -86,14 +79,9 @@ export function SaidaForm({
   useEffect(() => {
     void (async () => {
       try {
-        const [c, p] = await Promise.all([
-          fetch(apiUrl("/clients?page=1&pageSize=200")).then((r) => r.json()),
-          fetch(apiUrl("/products?page=1&pageSize=200")).then((r) => r.json()),
-        ]);
-        const clientsPayload = c as Paginated<Client>;
-        const productsPayload = p as Paginated<Product>;
-        setClients(clientsPayload.items);
-        setProducts(productsPayload.items);
+        const catalogs = await loadCatalogs();
+        setClients(catalogs.clients);
+        setProducts(catalogs.products);
         if (mode === "edit" && initial) {
           setClientId(initial.clientId);
           setExitInvoiceNumber(initial.exitInvoiceNumber);
@@ -103,11 +91,11 @@ export function SaidaForm({
           setNotes(initial.notes ?? "");
           setLines(initial.lines);
         } else {
-          if (clientsPayload.items[0]) setClientId(clientsPayload.items[0].id);
-          if (productsPayload.items[0]) {
+          if (catalogs.clients[0]) setClientId(catalogs.clients[0].id);
+          if (catalogs.products[0]) {
             setLines([
               {
-                productId: productsPayload.items[0].id,
+                productId: catalogs.products[0].id,
                 quantity: "1",
                 unit: "UN",
                 sector: "A",
@@ -173,17 +161,10 @@ export function SaidaForm({
     setLoading(true);
     try {
       const isEdit = mode === "edit" && outboundId;
-      const res = await fetch(
-        isEdit ? apiUrl(`/outbounds/${outboundId}`) : apiUrl("/outbounds"),
-        {
-          method: isEdit ? "PUT" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        }
-      );
-      if (!res.ok) {
-        throw new Error(await readApiErrorMessage(res));
-      }
+      await requestJson(isEdit ? `/outbounds/${outboundId}` : "/outbounds", {
+        method: isEdit ? "PUT" : "POST",
+        body,
+      });
       showToast(
         "success",
         isEdit ? "Saída atualizada." : "Saída confirmada com sucesso."

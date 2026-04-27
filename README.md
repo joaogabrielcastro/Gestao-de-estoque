@@ -106,6 +106,27 @@ docker compose build --build-arg NEXT_PUBLIC_API_URL=https://seu-dominio/api web
 
 O menu usa `apps/web/public/logo.svg` (referência AB em vermelho/preto). Para usar o arquivo oficial da empresa, substitua por `logo.png` (ou outro nome) e ajuste o `src` em `apps/web/components/Nav.tsx` e na folha de carga (`app/entradas/[id]/folha/page.tsx`).
 
+## Padrão arquitetural (API)
+
+A API está sendo evoluída para um padrão modular com responsabilidades explícitas:
+
+- `routes/*`: apenas mapeamento HTTP.
+- `modules/<dominio>/*.controller.ts`: tradução de `req/res`.
+- `modules/<dominio>/*.service.ts`: regras de negócio e orquestração.
+- `modules/<dominio>/*.repository.ts` (ou `repositories/*` compartilhados): acesso ao Prisma/DB.
+
+Módulos já no padrão:
+
+- `clients`
+- `products`
+- `inbounds`
+- `outbounds`
+
+Barrels de módulo foram adicionados para padronizar imports:
+
+- `apps/api/src/modules/<dominio>/index.ts`
+- `apps/api/src/modules/index.ts`
+
 ## Pacotes
 
 | Pacote | Descrição |

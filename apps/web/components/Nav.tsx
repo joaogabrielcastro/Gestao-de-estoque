@@ -40,9 +40,6 @@ export function Nav() {
           />
           <span className="hidden sm:inline">Gestão de estoque</span>
         </Link>
-        <span className="rounded-full bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
-          Piloto
-        </span>
         <nav className="flex flex-wrap gap-2 text-sm" aria-label="Principal">
           {links.map((l) => {
             const active = isNavActive(pathname, l.href);

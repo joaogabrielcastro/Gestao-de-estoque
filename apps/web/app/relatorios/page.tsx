@@ -27,7 +27,7 @@ export default function RelatoriosPage() {
     <div className="space-y-6">
       <h1 className="page-title">Relatórios (CSV)</h1>
       <p className="text-sm text-zinc-600">
-        Baixe os arquivos para compartilhar com o cliente e apoiar a apresentação do piloto.
+        Baixe os arquivos para compartilhar com o cliente e apoiar a apresentação.
       </p>
       <div className="grid gap-4 md:grid-cols-3">
         {downloads.map((d) => (

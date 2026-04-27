@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Gestão de estoque — Piloto",
+  title: "Gestão de estoque",
   description: "Controle de carga no barracão",
 };
 

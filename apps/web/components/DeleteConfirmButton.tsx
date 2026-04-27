@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { readApiErrorMessage } from "@/lib/api-error";
+import { requestJson } from "@/lib/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -87,9 +87,6 @@ export function DeleteConfirmButton({
   );
 }
 
-export async function fetchDelete(apiPath: string) {
-  const res = await fetch(apiPath, { method: "DELETE" });
-  if (!res.ok && res.status !== 204) {
-    throw new Error(await readApiErrorMessage(res));
-  }
+export async function fetchDelete(path: string) {
+  await requestJson<void>(path, { method: "DELETE" });
 }

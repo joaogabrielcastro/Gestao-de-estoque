@@ -2,8 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { readApiErrorMessage } from "@/lib/api-error";
-import { apiUrl } from "@/lib/api";
+import { requestJson } from "@/lib/api";
 import { DeleteConfirmButton, fetchDelete } from "@/components/DeleteConfirmButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -32,12 +31,10 @@ export function CatalogRowActions({
     }
     setSaving(true);
     try {
-      const res = await fetch(apiUrl(`${base}/${id}`), {
+      await requestJson(`${base}/${id}`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+        body: { name: trimmed },
       });
-      if (!res.ok) throw new Error(await readApiErrorMessage(res));
       showToast("success", "Salvo.");
       setEditOpen(false);
       router.refresh();
@@ -68,7 +65,7 @@ export function CatalogRowActions({
             : "Só é possível excluir se o produto não aparecer em nenhuma entrada ou saída."
         }
         onDelete={async () => {
-          await fetchDelete(apiUrl(`${base}/${id}`));
+          await fetchDelete(`${base}/${id}`);
           router.refresh();
         }}
       />

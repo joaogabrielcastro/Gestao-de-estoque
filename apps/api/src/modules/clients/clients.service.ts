@@ -1,31 +1,29 @@
+import { createClientSchema } from "@gestao/shared";
 import { z } from "zod";
-import { createClientSchema } from "../schemas";
-import { prisma } from "../lib/prisma";
+import * as repo from "./clients.repository";
 
-const updateSchema = z.object({
+const listClientsSchema = z.object({
+  q: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).default(20),
+});
+
+const updateClientSchema = z.object({
   name: z.string().min(1).optional(),
 });
 
 export async function listClients(query?: unknown) {
-  const f = z
-    .object({
-      q: z.string().optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      pageSize: z.coerce.number().int().min(1).max(200).default(20),
-    })
-    .parse(query ?? {});
+  const f = listClientsSchema.parse(query ?? {});
   const where = f.q
     ? { name: { contains: f.q, mode: "insensitive" as const } }
     : undefined;
-  const [items, total] = await Promise.all([
-    prisma.client.findMany({
-      where,
-      orderBy: { name: "asc" },
-      skip: (f.page - 1) * f.pageSize,
-      take: f.pageSize,
-    }),
-    prisma.client.count({ where }),
-  ]);
+
+  const { items, total } = await repo.findClientsPage({
+    where,
+    page: f.page,
+    pageSize: f.pageSize,
+  });
+
   return {
     items,
     page: f.page,
@@ -37,25 +35,20 @@ export async function listClients(query?: unknown) {
 
 export async function createClient(body: unknown) {
   const data = createClientSchema.parse(body);
-  return prisma.client.create({ data });
+  return repo.createClient(data);
 }
 
 export async function getClient(id: string) {
-  return prisma.client.findUnique({ where: { id } });
+  return repo.findClientById(id);
 }
 
 export async function updateClient(id: string, body: unknown) {
-  const data = updateSchema.parse(body);
-  return prisma.client.update({ where: { id }, data });
+  const data = updateClientSchema.parse(body);
+  return repo.updateClientById(id, data);
 }
 
 export async function deleteClient(id: string) {
-  const row = await prisma.client.findUnique({
-    where: { id },
-    include: {
-      _count: { select: { inbounds: true, outbounds: true } },
-    },
-  });
+  const row = await repo.findClientDeleteDependencies(id);
   if (!row) {
     const err = new Error("Cliente não encontrado");
     (err as { status?: number }).status = 404;
@@ -68,5 +61,5 @@ export async function deleteClient(id: string) {
     (err as { status?: number }).status = 409;
     throw err;
   }
-  await prisma.client.delete({ where: { id } });
+  await repo.deleteClientById(id);
 }

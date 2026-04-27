@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { fetchJson } from "@/lib/api";
+import { APP_MESSAGES } from "@/lib/messages";
+import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +17,6 @@ type StockRow = {
 
 type Client = { id: string; name: string };
 type Product = { id: string; name: string };
-type Paginated<T> = {
-  items: T[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
 
 export default async function EstoquePage({
   searchParams,
@@ -66,7 +61,7 @@ export default async function EstoquePage({
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = "API indisponível.";
+    err = APP_MESSAGES.API_UNAVAILABLE;
   }
 
   return (

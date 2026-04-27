@@ -2,17 +2,12 @@ import Link from "next/link";
 import { CatalogRowActions } from "@/components/CatalogRowActions";
 import { ClienteForm } from "@/components/ClienteForm";
 import { fetchJson } from "@/lib/api";
+import { APP_MESSAGES } from "@/lib/messages";
+import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
 type Client = { id: string; name: string };
-type Paginated<T> = {
-  items: T[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
 
 export default async function ClientesPage({
   searchParams,
@@ -34,7 +29,7 @@ export default async function ClientesPage({
       `/clients?page=${Math.max(1, page)}&pageSize=20`
     );
   } catch {
-    err = "API indisponível.";
+    err = APP_MESSAGES.API_UNAVAILABLE;
   }
 
   return (

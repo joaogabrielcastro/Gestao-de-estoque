@@ -1,18 +1,19 @@
-import { LoadStatus, MovementType, Prisma } from "@prisma/client";
+import { LoadStatus, Prisma } from "@prisma/client";
 import { createInboundSchema, updateInboundStatusSchema } from "@gestao/shared";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { assertPositiveQty } from "../domain/stock-policy";
+import { prisma } from "../../lib/prisma";
+import { assertPositiveQty } from "../../domain/stock-policy";
 import {
   assertNoDuplicateInvoiceNumbers,
   normalizeInvoiceNumber,
   sanitizeInvoiceNumbers,
-} from "../domain/invoice-policy";
+} from "../../domain/invoice-policy";
 import {
   aggregateDeltas,
   decrementBalancesWithGuard,
   incrementBalances,
-} from "../repositories/stock-balance.repository";
+} from "../../repositories/stock-balance.repository";
+import * as inboundRepo from "../../repositories/inbound.repository";
 
 export async function createInbound(body: unknown) {
   const data = createInboundSchema.parse(body);
@@ -33,51 +34,38 @@ export async function createInbound(body: unknown) {
 
   try {
     return await prisma.$transaction(async (tx) => {
-      const inbound = await tx.inbound.create({
+      const inbound = await inboundRepo.createInboundWithRelations({
+        tx,
         data: {
           clientId: data.clientId,
           destinationCity: data.destinationCity,
           supplierOrBrand: data.supplierOrBrand,
           notes: data.notes,
           sector: data.sector,
-          invoices: {
-            create: invoiceNumbers.map((number) => ({
-              number,
-              clientId: data.clientId,
-              numberNormalized: normalizeInvoiceNumber(number),
-            })),
-          },
-          lines: {
-            create: lineDecimals.map((line) => ({
-              productId: line.productId,
-              quantity: line.quantity,
-              unit: line.unit,
-            })),
-          },
-        },
-        include: {
-          invoices: true,
-          lines: { include: { product: true } },
-          client: true,
+          invoices: invoiceNumbers.map((number) => ({
+            number,
+            clientId: data.clientId,
+            numberNormalized: normalizeInvoiceNumber(number),
+          })),
+          lines: lineDecimals.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            unit: line.unit,
+          })),
         },
       });
 
-      await Promise.all(
-        inbound.lines.map((line) =>
-          tx.stockMovement.create({
-            data: {
-              occurredAt,
-              type: MovementType.ENTRADA,
-              clientId: data.clientId,
-              productId: line.productId,
-              quantity: line.quantity,
-              unit: line.unit,
-              sector: data.sector,
-              referenceType: "INBOUND",
-              referenceId: inbound.id,
-            },
-          })
-        )
+      await inboundRepo.createInboundStockMovements(
+        tx,
+        inbound.lines.map((line) => ({
+          occurredAt,
+          clientId: data.clientId,
+          productId: line.productId,
+          quantity: line.quantity,
+          unit: line.unit,
+          sector: data.sector,
+          referenceId: inbound.id,
+        }))
       );
 
       const inboundDeltas = aggregateDeltas(
@@ -138,20 +126,11 @@ export async function listInbounds(filters: unknown) {
       : {}),
   };
 
-  const [items, total] = await Promise.all([
-    prisma.inbound.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip: (f.page - 1) * f.pageSize,
-      take: f.pageSize,
-      include: {
-        client: true,
-        invoices: true,
-        lines: { include: { product: true } },
-      },
-    }),
-    prisma.inbound.count({ where }),
-  ]);
+  const { items, total } = await inboundRepo.findInboundsPage({
+    where,
+    page: f.page,
+    pageSize: f.pageSize,
+  });
 
   return {
     items,
@@ -164,30 +143,15 @@ export async function listInbounds(filters: unknown) {
 
 export async function updateInboundStatus(id: string, body: unknown) {
   const data = updateInboundStatusSchema.parse(body);
-  return prisma.inbound.update({
-    where: { id },
-    data: { status: data.status },
-  });
+  return inboundRepo.updateInboundStatus(id, data.status);
 }
 
 export async function getInboundById(id: string) {
-  return prisma.inbound.findUnique({
-    where: {
-      id,
-    },
-    include: {
-      client: true,
-      invoices: true,
-      lines: { include: { product: true } },
-    },
-  });
+  return inboundRepo.findInboundById(id);
 }
 
 export async function deleteInbound(id: string) {
-  const existing = await prisma.inbound.findUnique({
-    where: { id },
-    include: { lines: true },
-  });
+  const existing = await inboundRepo.findInboundWithLines(id);
   if (!existing) {
     const err = new Error("Entrada não encontrada");
     (err as { status?: number }).status = 404;
@@ -206,11 +170,9 @@ export async function deleteInbound(id: string) {
     );
     await decrementBalancesWithGuard(tx, oldDeltas);
 
-    await tx.stockMovement.deleteMany({
-      where: { referenceType: "INBOUND", referenceId: id },
-    });
+    await inboundRepo.deleteInboundMovements(id, tx);
 
-    await tx.inbound.delete({ where: { id } });
+    await inboundRepo.deleteInboundById(id, tx);
   });
 }
 
@@ -218,10 +180,7 @@ export async function replaceInbound(id: string, body: unknown) {
   const data = createInboundSchema.parse(body);
   const occurredAt = new Date();
 
-  const existing = await prisma.inbound.findUnique({
-    where: { id },
-    include: { lines: true },
-  });
+  const existing = await inboundRepo.findInboundWithLines(id);
   if (!existing) {
     const err = new Error("Entrada não encontrada");
     (err as { status?: number }).status = 404;
@@ -254,59 +213,43 @@ export async function replaceInbound(id: string, body: unknown) {
       );
       await decrementBalancesWithGuard(tx, oldDeltas);
 
-      await tx.stockMovement.deleteMany({
-        where: { referenceType: "INBOUND", referenceId: id },
-      });
+      await inboundRepo.deleteInboundMovements(id, tx);
 
-      await tx.inboundLine.deleteMany({ where: { inboundId: id } });
-      await tx.inboundInvoice.deleteMany({ where: { inboundId: id } });
+      await inboundRepo.replaceInboundRelations(id, tx);
 
-      const inbound = await tx.inbound.update({
-        where: { id },
+      const inbound = await inboundRepo.updateInboundWithRelations({
+        tx,
+        id,
         data: {
           clientId: data.clientId,
           destinationCity: data.destinationCity,
           supplierOrBrand: data.supplierOrBrand,
           notes: data.notes,
           sector: data.sector,
-          invoices: {
-            create: invoiceNumbers.map((number) => ({
-              number,
-              clientId: data.clientId,
-              numberNormalized: normalizeInvoiceNumber(number),
-            })),
-          },
-          lines: {
-            create: lineDecimals.map((line) => ({
-              productId: line.productId,
-              quantity: line.quantity,
-              unit: line.unit,
-            })),
-          },
-        },
-        include: {
-          invoices: true,
-          lines: { include: { product: true } },
-          client: true,
+          invoices: invoiceNumbers.map((number) => ({
+            number,
+            clientId: data.clientId,
+            numberNormalized: normalizeInvoiceNumber(number),
+          })),
+          lines: lineDecimals.map((line) => ({
+            productId: line.productId,
+            quantity: line.quantity,
+            unit: line.unit,
+          })),
         },
       });
 
-      await Promise.all(
-        inbound.lines.map((line) =>
-          tx.stockMovement.create({
-            data: {
-              occurredAt,
-              type: MovementType.ENTRADA,
-              clientId: data.clientId,
-              productId: line.productId,
-              quantity: line.quantity,
-              unit: line.unit,
-              sector: data.sector,
-              referenceType: "INBOUND",
-              referenceId: inbound.id,
-            },
-          })
-        )
+      await inboundRepo.createInboundStockMovements(
+        tx,
+        inbound.lines.map((line) => ({
+          occurredAt,
+          clientId: data.clientId,
+          productId: line.productId,
+          quantity: line.quantity,
+          unit: line.unit,
+          sector: data.sector,
+          referenceId: inbound.id,
+        }))
       );
 
       const inboundDeltas = aggregateDeltas(

@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { readApiErrorMessage } from "@/lib/api-error";
-import { apiUrl } from "@/lib/api";
+import { requestJson } from "@/lib/api";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function ClienteForm() {
@@ -19,14 +18,10 @@ export function ClienteForm() {
     setError(null);
     setLoading(true);
     try {
-      const res = await fetch(apiUrl("/clients"), {
+      await requestJson("/clients", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: { name },
       });
-      if (!res.ok) {
-        throw new Error(await readApiErrorMessage(res));
-      }
       setName("");
       showToast("success", "Cliente cadastrado.");
       router.refresh();

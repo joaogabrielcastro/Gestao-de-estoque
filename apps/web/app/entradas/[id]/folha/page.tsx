@@ -83,7 +83,7 @@ export default async function FolhaPage({
             />
             <div>
               <div className="text-xs font-medium uppercase tracking-wide text-zinc-500">
-                Folha de carga (piloto)
+                Folha de carga
               </div>
               <h1 className="text-xl font-semibold text-zinc-900">
                 Entrada #{row.id.slice(0, 8)}

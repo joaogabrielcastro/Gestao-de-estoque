@@ -1,3 +1,5 @@
+import { readApiErrorMessage } from "@/lib/api-error";
+
 function resolveApiBase(): string {
   const isServer = typeof window === "undefined";
   const raw =
@@ -36,4 +38,32 @@ export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T>
     throw new Error(msg);
   }
   return res.json() as Promise<T>;
+}
+
+export async function requestJson<TResponse, TBody = unknown>(
+  path: string,
+  options?: {
+    method?: "POST" | "PUT" | "PATCH" | "DELETE";
+    body?: TBody;
+    init?: RequestInit;
+  }
+): Promise<TResponse> {
+  const method = options?.method ?? "POST";
+  const res = await fetch(apiUrl(path), {
+    ...(options?.init ?? {}),
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options?.init?.headers ?? {}),
+    },
+    body: options?.body === undefined ? undefined : JSON.stringify(options.body),
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    throw new Error(await readApiErrorMessage(res));
+  }
+  if (res.status === 204) {
+    return undefined as TResponse;
+  }
+  return res.json() as Promise<TResponse>;
 }

@@ -1,31 +1,29 @@
+import { createProductSchema } from "@gestao/shared";
 import { z } from "zod";
-import { createProductSchema } from "../schemas";
-import { prisma } from "../lib/prisma";
+import * as repo from "./products.repository";
 
-const updateSchema = z.object({
+const listProductsSchema = z.object({
+  q: z.string().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(200).default(20),
+});
+
+const updateProductSchema = z.object({
   name: z.string().min(1).optional(),
 });
 
 export async function listProducts(query?: unknown) {
-  const f = z
-    .object({
-      q: z.string().optional(),
-      page: z.coerce.number().int().min(1).default(1),
-      pageSize: z.coerce.number().int().min(1).max(200).default(20),
-    })
-    .parse(query ?? {});
+  const f = listProductsSchema.parse(query ?? {});
   const where = f.q
     ? { name: { contains: f.q, mode: "insensitive" as const } }
     : undefined;
-  const [items, total] = await Promise.all([
-    prisma.product.findMany({
-      where,
-      orderBy: { name: "asc" },
-      skip: (f.page - 1) * f.pageSize,
-      take: f.pageSize,
-    }),
-    prisma.product.count({ where }),
-  ]);
+
+  const { items, total } = await repo.findProductsPage({
+    where,
+    page: f.page,
+    pageSize: f.pageSize,
+  });
+
   return {
     items,
     page: f.page,
@@ -37,25 +35,20 @@ export async function listProducts(query?: unknown) {
 
 export async function createProduct(body: unknown) {
   const data = createProductSchema.parse(body);
-  return prisma.product.create({ data });
+  return repo.createProduct(data);
 }
 
 export async function getProduct(id: string) {
-  return prisma.product.findUnique({ where: { id } });
+  return repo.findProductById(id);
 }
 
 export async function updateProduct(id: string, body: unknown) {
-  const data = updateSchema.parse(body);
-  return prisma.product.update({ where: { id }, data });
+  const data = updateProductSchema.parse(body);
+  return repo.updateProductById(id, data);
 }
 
 export async function deleteProduct(id: string) {
-  const row = await prisma.product.findUnique({
-    where: { id },
-    include: {
-      _count: { select: { inboundLines: true, outboundLines: true } },
-    },
-  });
+  const row = await repo.findProductDeleteDependencies(id);
   if (!row) {
     const err = new Error("Produto não encontrado");
     (err as { status?: number }).status = 404;
@@ -68,5 +61,5 @@ export async function deleteProduct(id: string) {
     (err as { status?: number }).status = 409;
     throw err;
   }
-  await prisma.product.delete({ where: { id } });
+  await repo.deleteProductById(id);
 }

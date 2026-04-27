@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { readApiErrorMessage } from "@/lib/api-error";
-import { apiUrl } from "@/lib/api";
+import { requestJson } from "@/lib/api";
 
 type Status = "ARMAZENADA" | "SEPARADA" | "RETIRADA";
 
@@ -28,14 +27,10 @@ export function InboundStatusSelect({
     setStatus(nextStatus);
     setLoading(true);
     try {
-      const res = await fetch(apiUrl(`/inbounds/${inboundId}/status`), {
+      await requestJson(`/inbounds/${inboundId}/status`, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
+        body: { status: nextStatus },
       });
-      if (!res.ok) {
-        throw new Error(await readApiErrorMessage(res));
-      }
       showToast("success", "Status da carga atualizado.");
     } catch (err) {
       setStatus(initialStatus);

@@ -1,4 +1,6 @@
 import { fetchJson } from "@/lib/api";
+import { APP_MESSAGES } from "@/lib/messages";
+import type { Paginated } from "@/lib/types";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -13,14 +15,6 @@ type Movement = {
   clientName: string;
   productName: string;
 };
-type Paginated<T> = {
-  items: T[];
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-};
-
 type Client = { id: string; name: string };
 type Product = { id: string; name: string };
 
@@ -71,7 +65,7 @@ export default async function MovimentacoesPage({
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = "API indisponível.";
+    err = APP_MESSAGES.API_UNAVAILABLE;
   }
 
   return (

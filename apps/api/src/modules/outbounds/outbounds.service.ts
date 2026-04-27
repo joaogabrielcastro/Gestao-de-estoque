@@ -1,13 +1,14 @@
-import { MovementType, Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { createOutboundSchema } from "@gestao/shared";
 import { z } from "zod";
-import { prisma } from "../lib/prisma";
-import { assertPositiveQty } from "../domain/stock-policy";
+import { prisma } from "../../lib/prisma";
+import { assertPositiveQty } from "../../domain/stock-policy";
 import {
   aggregateDeltas,
   decrementBalancesWithGuard,
   incrementBalances,
-} from "../repositories/stock-balance.repository";
+} from "../../repositories/stock-balance.repository";
+import * as outboundRepo from "../../repositories/outbound.repository";
 
 const outboundFilterSchema = z.object({
   clientId: z.string().uuid().optional(),
@@ -46,7 +47,8 @@ export async function createOutbound(body: unknown) {
     );
     await decrementBalancesWithGuard(tx, outboundDeltas);
 
-    const outbound = await tx.outbound.create({
+    const outbound = await outboundRepo.createOutboundWithRelations({
+      tx,
       data: {
         clientId: data.clientId,
         exitInvoiceNumber: data.exitInvoiceNumber,
@@ -54,37 +56,26 @@ export async function createOutbound(body: unknown) {
         pickedUpBy: data.pickedUpBy,
         destination: data.destination,
         notes: data.notes,
-        lines: {
-          create: lineDecimals.map((l) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unit: l.unit,
-            sector: l.sector,
-          })),
-        },
-      },
-      include: {
-        lines: { include: { product: true } },
-        client: true,
+        lines: lineDecimals.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          unit: l.unit,
+          sector: l.sector,
+        })),
       },
     });
 
-    await Promise.all(
-      outbound.lines.map((line) =>
-        tx.stockMovement.create({
-          data: {
-            occurredAt: data.withdrawalDate,
-            type: MovementType.SAIDA,
-            clientId: data.clientId,
-            productId: line.productId,
-            quantity: line.quantity,
-            unit: line.unit,
-            sector: line.sector,
-            referenceType: "OUTBOUND",
-            referenceId: outbound.id,
-          },
-        })
-      )
+    await outboundRepo.createOutboundStockMovements(
+      tx,
+      outbound.lines.map((line) => ({
+        occurredAt: data.withdrawalDate,
+        clientId: data.clientId,
+        productId: line.productId,
+        quantity: line.quantity,
+        unit: line.unit,
+        sector: line.sector,
+        referenceId: outbound.id,
+      }))
     );
 
     return outbound;
@@ -127,19 +118,11 @@ export async function listOutbounds(filters: unknown) {
     ...dateFilter,
   };
 
-  const [items, total] = await Promise.all([
-    prisma.outbound.findMany({
-      where,
-      orderBy: { withdrawalDate: "desc" },
-      skip: (f.page - 1) * f.pageSize,
-      take: f.pageSize,
-      include: {
-        client: true,
-        lines: { include: { product: true } },
-      },
-    }),
-    prisma.outbound.count({ where }),
-  ]);
+  const { items, total } = await outboundRepo.findOutboundsPage({
+    where,
+    page: f.page,
+    pageSize: f.pageSize,
+  });
 
   return {
     items,
@@ -151,20 +134,11 @@ export async function listOutbounds(filters: unknown) {
 }
 
 export async function getOutboundById(id: string) {
-  return prisma.outbound.findUnique({
-    where: { id },
-    include: {
-      client: true,
-      lines: { include: { product: true } },
-    },
-  });
+  return outboundRepo.findOutboundById(id);
 }
 
 export async function deleteOutbound(id: string) {
-  const existing = await prisma.outbound.findUnique({
-    where: { id },
-    include: { lines: true },
-  });
+  const existing = await outboundRepo.findOutboundWithLines(id);
   if (!existing) {
     const err = new Error("Saída não encontrada");
     (err as { status?: number }).status = 404;
@@ -183,21 +157,16 @@ export async function deleteOutbound(id: string) {
     );
     await incrementBalances(tx, restoreDeltas);
 
-    await tx.stockMovement.deleteMany({
-      where: { referenceType: "OUTBOUND", referenceId: id },
-    });
+    await outboundRepo.deleteOutboundMovements(id, tx);
 
-    await tx.outbound.delete({ where: { id } });
+    await outboundRepo.deleteOutboundById(id, tx);
   });
 }
 
 export async function replaceOutbound(id: string, body: unknown) {
   const data = createOutboundSchema.parse(body);
 
-  const existing = await prisma.outbound.findUnique({
-    where: { id },
-    include: { lines: true },
-  });
+  const existing = await outboundRepo.findOutboundWithLines(id);
   if (!existing) {
     const err = new Error("Saída não encontrada");
     (err as { status?: number }).status = 404;
@@ -227,11 +196,9 @@ export async function replaceOutbound(id: string, body: unknown) {
     );
     await incrementBalances(tx, restoreDeltas);
 
-    await tx.stockMovement.deleteMany({
-      where: { referenceType: "OUTBOUND", referenceId: id },
-    });
+    await outboundRepo.deleteOutboundMovements(id, tx);
 
-    await tx.outboundLine.deleteMany({ where: { outboundId: id } });
+    await outboundRepo.deleteOutboundLines(id, tx);
 
     const outboundDeltas = aggregateDeltas(
       lineDecimals.map((line) => ({
@@ -244,8 +211,9 @@ export async function replaceOutbound(id: string, body: unknown) {
     );
     await decrementBalancesWithGuard(tx, outboundDeltas);
 
-    const outbound = await tx.outbound.update({
-      where: { id },
+    const outbound = await outboundRepo.updateOutboundWithRelations({
+      tx,
+      id,
       data: {
         clientId: data.clientId,
         exitInvoiceNumber: data.exitInvoiceNumber,
@@ -253,37 +221,26 @@ export async function replaceOutbound(id: string, body: unknown) {
         pickedUpBy: data.pickedUpBy,
         destination: data.destination,
         notes: data.notes,
-        lines: {
-          create: lineDecimals.map((l) => ({
-            productId: l.productId,
-            quantity: l.quantity,
-            unit: l.unit,
-            sector: l.sector,
-          })),
-        },
-      },
-      include: {
-        lines: { include: { product: true } },
-        client: true,
+        lines: lineDecimals.map((l) => ({
+          productId: l.productId,
+          quantity: l.quantity,
+          unit: l.unit,
+          sector: l.sector,
+        })),
       },
     });
 
-    await Promise.all(
-      outbound.lines.map((line) =>
-        tx.stockMovement.create({
-          data: {
-            occurredAt: data.withdrawalDate,
-            type: MovementType.SAIDA,
-            clientId: data.clientId,
-            productId: line.productId,
-            quantity: line.quantity,
-            unit: line.unit,
-            sector: line.sector,
-            referenceType: "OUTBOUND",
-            referenceId: outbound.id,
-          },
-        })
-      )
+    await outboundRepo.createOutboundStockMovements(
+      tx,
+      outbound.lines.map((line) => ({
+        occurredAt: data.withdrawalDate,
+        clientId: data.clientId,
+        productId: line.productId,
+        quantity: line.quantity,
+        unit: line.unit,
+        sector: line.sector,
+        referenceId: outbound.id,
+      }))
     );
 
     return outbound;

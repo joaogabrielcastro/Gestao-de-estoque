@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DeleteConfirmButton, fetchDelete } from "@/components/DeleteConfirmButton";
-import { apiUrl } from "@/lib/api";
 
 export function InboundRowActions({ id }: { id: string }) {
   const router = useRouter();
@@ -20,7 +19,7 @@ export function InboundRowActions({ id }: { id: string }) {
         title="Excluir esta entrada?"
         description="O estoque será ajustado (como se a carga não tivesse entrado). Não é possível desfazer."
         onDelete={async () => {
-          await fetchDelete(apiUrl(`/inbounds/${id}`));
+          await fetchDelete(`/inbounds/${id}`);
           router.refresh();
         }}
       />
