@@ -42,6 +42,60 @@ type Summary = {
   }>;
 };
 
+function safeSummary(payload: unknown): Summary | null {
+  if (!payload || typeof payload !== "object") return null;
+  const raw = payload as Partial<Summary>;
+  if (!raw.executive || typeof raw.executive !== "object") return null;
+  if (!raw.totalByUnit || typeof raw.totalByUnit !== "object") return null;
+
+  return {
+    period: raw.period === "30d" || raw.period === "month" ? raw.period : "7d",
+    periodFrom: typeof raw.periodFrom === "string" ? raw.periodFrom : "",
+    executive: {
+      activeLoads:
+        typeof raw.executive.activeLoads === "number"
+          ? raw.executive.activeLoads
+          : 0,
+      topClientByVolume: {
+        clientName:
+          typeof raw.executive.topClientByVolume?.clientName === "string"
+            ? raw.executive.topClientByVolume.clientName
+            : "—",
+        volume:
+          typeof raw.executive.topClientByVolume?.volume === "number"
+            ? raw.executive.topClientByVolume.volume
+            : 0,
+      },
+      busiestSector: {
+        sector:
+          typeof raw.executive.busiestSector?.sector === "string"
+            ? raw.executive.busiestSector.sector
+            : null,
+        volume:
+          typeof raw.executive.busiestSector?.volume === "number"
+            ? raw.executive.busiestSector.volume
+            : 0,
+      },
+      movementCountInPeriod:
+        typeof raw.executive.movementCountInPeriod === "number"
+          ? raw.executive.movementCountInPeriod
+          : 0,
+    },
+    totalByUnit: {
+      UN: String(raw.totalByUnit.UN ?? "0"),
+      CX: String(raw.totalByUnit.CX ?? "0"),
+      PAL: String(raw.totalByUnit.PAL ?? "0"),
+    },
+    byClient: Array.isArray(raw.byClient) ? raw.byClient : [],
+    bySector:
+      raw.bySector && typeof raw.bySector === "object" ? raw.bySector : {},
+    recentInbounds: Array.isArray(raw.recentInbounds) ? raw.recentInbounds : [],
+    recentOutbounds: Array.isArray(raw.recentOutbounds)
+      ? raw.recentOutbounds
+      : [],
+  };
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -51,7 +105,10 @@ export default async function DashboardPage({
   const period = sp.period ?? "7d";
   let data: Summary;
   try {
-    data = await fetchJson<Summary>(`/dashboard/summary?period=${period}`);
+    const payload = await fetchJson<unknown>(`/dashboard/summary?period=${period}`);
+    const normalized = safeSummary(payload);
+    if (!normalized) throw new Error("Payload inválido do dashboard");
+    data = normalized;
   } catch {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
