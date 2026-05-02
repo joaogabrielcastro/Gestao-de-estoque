@@ -74,18 +74,25 @@ export async function decrementBalancesWithGuard(
     });
 
     if (result.count === 0) {
-      const current = await tx.stockBalance.findFirst({
-        where: {
-          clientId: delta.clientId,
-          productId: delta.productId,
-          sector: delta.sector,
-          unit: delta.unit,
-        },
-        select: { quantity: true },
-      });
+      const [current, product] = await Promise.all([
+        tx.stockBalance.findFirst({
+          where: {
+            clientId: delta.clientId,
+            productId: delta.productId,
+            sector: delta.sector,
+            unit: delta.unit,
+          },
+          select: { quantity: true },
+        }),
+        tx.product.findUnique({
+          where: { id: delta.productId },
+          select: { name: true },
+        }),
+      ]);
       const available = current?.quantity ?? new Prisma.Decimal(0);
+      const produto = product?.name ?? "este produto";
       const err = new Error(
-        `Estoque insuficiente para produto ${delta.productId} no setor ${delta.sector} (${delta.unit}). Disponível ${available.toString()} | Solicitado ${delta.quantity.toString()}`
+        `Saldo insuficiente: ${produto} no setor ${delta.sector} (${delta.unit}). Disponível: ${available.toString()}. Solicitado: ${delta.quantity.toString()}.`
       );
       (err as { status?: number; code?: string }).status = 409;
       (err as { status?: number; code?: string }).code = "INSUFFICIENT_STOCK";

@@ -227,7 +227,7 @@ export function SaidaForm({
             </select>
           </label>
           <label className="flex flex-col gap-1 text-sm">
-            NF de saída
+            NF de saída (nota fiscal)
             <input
               value={exitInvoiceNumber}
               onChange={(e) => setExitInvoiceNumber(e.target.value)}
@@ -276,7 +276,9 @@ export function SaidaForm({
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Itens (setor de origem)</span>
+            <span className="text-sm font-medium">
+              Itens da retirada (setor de origem no barracão)
+            </span>
             <button
               type="button"
               onClick={addLine}
@@ -305,7 +307,7 @@ export function SaidaForm({
                 </select>
               </label>
               <label className="w-20 text-xs">
-                Qtd
+                Quantidade
                 <input
                   type="text"
                   inputMode="decimal"
@@ -316,7 +318,7 @@ export function SaidaForm({
                 />
               </label>
               <label className="w-24 text-xs">
-                Un.
+                Unidade
                 <select
                   value={line.unit}
                   onChange={(e) =>
@@ -330,7 +332,7 @@ export function SaidaForm({
                 </select>
               </label>
               <label className="w-24 text-xs">
-                Setor
+                Setor origem
                 <select
                   value={line.sector}
                   onChange={(e) =>
@@ -353,7 +355,7 @@ export function SaidaForm({
 
         {stockAlert && (
           <div className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-900">
-            Regra crítica acionada: {stockAlert}
+            <strong>Saldo insuficiente no barracão.</strong> {stockAlert}
           </div>
         )}
         {error && <p className="text-sm text-red-600">{error}</p>}
@@ -365,8 +367,8 @@ export function SaidaForm({
         >
           {loading && <Spinner className="h-4 w-4 border-white" />}
           {mode === "edit"
-            ? "Revisar e salvar alterações"
-            : "Revisar e registrar saída"}
+            ? "Revisar e salvar alterações na retirada"
+            : "Revisar e registrar retirada"}
         </button>
       </form>
 
@@ -383,13 +385,13 @@ export function SaidaForm({
               className="text-lg font-semibold text-zinc-900"
             >
               {mode === "edit"
-                ? "Confirmar alteração na saída?"
-                : "Confirmar retirada?"}
+                ? "Confirmar alteração nesta retirada?"
+                : "Confirmar esta retirada de carga?"}
             </h2>
             <p className="mt-1 text-sm text-zinc-600">
               {mode === "edit"
-                ? "O estoque será recalculado com base nos novos valores."
-                : "Confira os dados antes de registrar a saída e movimentar o estoque."}
+                ? "O saldo no barracão será atualizado conforme os novos itens e quantidades."
+                : "Depois de confirmar, o sistema baixa o estoque por cliente, produto, setor e unidade (UN/CX/PAL). Confira NF e quantidades."}
             </p>
             <dl className="mt-4 space-y-2 text-sm">
               <div>
@@ -397,11 +399,11 @@ export function SaidaForm({
                 <dd className="font-medium">{clientName()}</dd>
               </div>
               <div>
-                <dt className="text-xs text-zinc-500">NF de saída</dt>
+                <dt className="text-xs text-zinc-500">NF de saída (nota fiscal)</dt>
                 <dd className="font-mono">{exitInvoiceNumber}</dd>
               </div>
               <div>
-                <dt className="text-xs text-zinc-500">Data</dt>
+                <dt className="text-xs text-zinc-500">Data e hora da retirada</dt>
                 <dd>
                   {new Date(withdrawalDate).toLocaleString("pt-BR", {
                     dateStyle: "short",
@@ -410,7 +412,9 @@ export function SaidaForm({
                 </dd>
               </div>
               <div>
-                <dt className="text-xs text-zinc-500">Quem retirou / destino</dt>
+                <dt className="text-xs text-zinc-500">
+                  Quem retirou · destino da carga
+                </dt>
                 <dd>
                   {pickedUpBy} → {destination}
                 </dd>
@@ -423,12 +427,14 @@ export function SaidaForm({
               ) : null}
             </dl>
             <div className="mt-4">
-              <div className="text-xs text-zinc-500">Itens</div>
-              <ul className="mt-1 list-inside list-disc text-sm">
+              <div className="text-xs font-medium text-zinc-600">
+                Itens da retirada
+              </div>
+              <ul className="mt-1 list-inside list-disc text-sm text-zinc-800">
                 {lines.map((l, i) => (
                   <li key={i}>
-                    {productName(l.productId)} — {l.quantity} {l.unit} (setor{" "}
-                    {l.sector})
+                    {productName(l.productId)} · {l.quantity} {l.unit} · setor{" "}
+                    {l.sector}
                   </li>
                 ))}
               </ul>
@@ -449,7 +455,9 @@ export function SaidaForm({
                 className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {loading && <Spinner className="h-4 w-4 border-white" />}
-                {mode === "edit" ? "Confirmar alteração" : "Confirmar retirada"}
+                {mode === "edit"
+                  ? "Confirmar alteração"
+                  : "Confirmar e baixar estoque"}
               </button>
             </div>
           </div>

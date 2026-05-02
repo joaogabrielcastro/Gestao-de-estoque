@@ -1,6 +1,6 @@
-# Gestão de estoque (piloto)
+# Gestão de estoque
 
-Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App Router) + Tailwind**.
+Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App Router) + Tailwind**. Pronto para ambiente de **produção** (rede interna ou hospedagem própria): configure variáveis de ambiente, use **migrations** versionadas em PRD e mantenha backup do Postgres.
 
 ## Pré-requisitos
 
@@ -23,15 +23,28 @@ Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App
    npm run db:push
    ```
 
-   (ou `npm run db:migrate` após ajustar o nome da migration no fluxo interativo do Prisma.)
+   Em produção, prefira:
 
-4. Popular dados de demonstração:
+   ```bash
+   npm run db:migrate -w @gestao/api
+   ```
+
+   e no deploy: `prisma migrate deploy` (não use `db push` em PRD se você versionar migrations).
+
+4. Popular dados de demonstração (opcional):
 
    ```bash
    npm run db:seed
    ```
 
 5. Web — copie `apps/web/.env.example` para `apps/web/.env.local` se precisar mudar URLs. Padrões: `NEXT_PUBLIC_API_URL=http://localhost:3011/api` e `NEXT_PUBLIC_APP_URL=http://localhost:3000` (usado no QR da **folha de carga**).
+
+### Busca global (opcional)
+
+- API: `ENABLE_GLOBAL_SEARCH=true`
+- Web: `NEXT_PUBLIC_ENABLE_GLOBAL_SEARCH=true`
+
+Os dois devem estar alinhados; o menu **Busca** só aparece quando a variável pública está habilitada.
 
 ## Testes de integração (API)
 
@@ -66,6 +79,8 @@ npm run dev:web
 npm run build
 ```
 
+O build compila `@gestao/shared`, depois API e Web.
+
 ## Docker (PostgreSQL + API + Web)
 
 Na raiz do repositório:
@@ -88,19 +103,21 @@ Se o front for acessado por outro host (não `localhost`), reconstrua a web com 
 docker compose build --build-arg NEXT_PUBLIC_API_URL=https://seu-dominio/api web
 ```
 
-## Roteiro para apresentação do piloto
+No sistema web, o menu **Guia** (`/guia`) traz o passo a passo sugerido para a operação no barracão.
 
-1. Execute `npm run db:push && npm run db:seed`.
+## Checklist de homologação
+
+1. Execute `npm run db:push && npm run db:seed` (ou migrations + seed em ambiente de teste).
 2. Suba API e Web (`npm run dev:api` e `npm run dev:web`).
-3. Mostre o fluxo:
+3. Valide o fluxo:
    - `Clientes` e `Produtos` (cadastros base)
    - `Entradas > Nova entrada` (registro de carga com NFs e setor)
    - `Estoque` (saldo atual por cliente/produto/setor)
    - `Saídas > Nova saída` (retirada com validação de estoque)
    - `Movimentações` (histórico entrada/saída)
    - `Relatórios` (download dos CSVs)
-4. Para provar regra de negócio, tente retirar quantidade maior que o saldo e mostre o bloqueio de estoque negativo.
-5. Em **Entradas**, abra **Folha / QR** para imprimir a “folha do pallet” (Ctrl+P → salvar PDF) e mostrar o QR que aponta para a mesma página.
+4. Regra de negócio: tentativa de retirada acima do saldo deve retornar bloqueio de estoque negativo.
+5. Em **Entradas**, abra **Folha / QR** para imprimir a folha (Ctrl+P → salvar PDF) e conferir o QR que aponta para a mesma página.
 
 ## Marca / logo
 
@@ -108,21 +125,18 @@ O menu usa `apps/web/public/logo.svg` (referência AB em vermelho/preto). Para u
 
 ## Padrão arquitetural (API)
 
-A API está sendo evoluída para um padrão modular com responsabilidades explícitas:
+A API segue módulos com responsabilidades explícitas:
 
 - `routes/*`: apenas mapeamento HTTP.
 - `modules/<dominio>/*.controller.ts`: tradução de `req/res`.
 - `modules/<dominio>/*.service.ts`: regras de negócio e orquestração.
-- `modules/<dominio>/*.repository.ts` (ou `repositories/*` compartilhados): acesso ao Prisma/DB.
+- `modules/<dominio>/*.repository.ts` ou `repositories/*`: acesso ao Prisma/DB.
 
-Módulos já no padrão:
+Schemas Zod compartilhados entre API e pacote único:
 
-- `clients`
-- `products`
-- `inbounds`
-- `outbounds`
+- `packages/shared` — validações de entrada/saída; a API importa `@gestao/shared` (sem cópia local de schemas).
 
-Barrels de módulo foram adicionados para padronizar imports:
+Barrels de módulo:
 
 - `apps/api/src/modules/<dominio>/index.ts`
 - `apps/api/src/modules/index.ts`
@@ -131,6 +145,6 @@ Barrels de módulo foram adicionados para padronizar imports:
 
 | Pacote | Descrição |
 |--------|-----------|
-| `packages/shared` | Schemas Zod compartilhados |
+| `packages/shared` | Schemas Zod compartilhados (fonte única) |
 | `apps/api` | REST Express |
 | `apps/web` | Interface Next.js |

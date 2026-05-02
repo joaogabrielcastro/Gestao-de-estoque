@@ -3,19 +3,27 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+const searchEnabled = process.env.NEXT_PUBLIC_ENABLE_GLOBAL_SEARCH === "true";
+
 const links = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/guia", label: "Guia" },
   { href: "/entradas", label: "Entradas" },
   { href: "/estoque", label: "Estoque" },
+  { href: "/movimentacoes", label: "Movimentações" },
   { href: "/saidas", label: "Saídas" },
   { href: "/clientes", label: "Clientes" },
   { href: "/produtos", label: "Produtos" },
   { href: "/relatorios", label: "Relatórios" },
+  ...(searchEnabled ? [{ href: "/busca", label: "Busca" } as const] : []),
 ];
 
 function isNavActive(pathname: string, href: string) {
   if (href === "/dashboard") {
     return pathname === "/dashboard" || pathname === "/";
+  }
+  if (href === "/guia") {
+    return pathname === "/guia";
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }

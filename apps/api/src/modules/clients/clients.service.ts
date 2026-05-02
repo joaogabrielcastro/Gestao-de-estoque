@@ -1,4 +1,4 @@
-import { createClientSchema } from "../../schemas";
+import { createClientSchema } from "@gestao/shared";
 import { z } from "zod";
 import * as repo from "./clients.repository";
 
@@ -6,6 +6,7 @@ const listClientsSchema = z.object({
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
+  sort: z.enum(["name", "recent"]).optional().default("name"),
 });
 
 const updateClientSchema = z.object({
@@ -22,6 +23,7 @@ export async function listClients(query?: unknown) {
     where,
     page: f.page,
     pageSize: f.pageSize,
+    sort: f.sort,
   });
 
   return {

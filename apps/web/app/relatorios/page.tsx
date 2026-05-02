@@ -25,9 +25,10 @@ const downloads = [
 export default function RelatoriosPage() {
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Relatórios (CSV)</h1>
+      <h1 className="page-title">Relatórios para o financeiro</h1>
       <p className="text-sm text-zinc-600">
-        Baixe os arquivos para compartilhar com o cliente e apoiar a apresentação.
+        Arquivos CSV com cabeçalhos em português e formato UTF-8 (abra no Excel; as colunas
+        já vêm nomeadas). Um registro por linha, prontos para conferência.
       </p>
       <div className="grid gap-4 md:grid-cols-3">
         {downloads.map((d) => (

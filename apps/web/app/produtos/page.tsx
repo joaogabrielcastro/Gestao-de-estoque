@@ -34,7 +34,13 @@ export default async function ProdutosPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Produtos</h1>
+      <div>
+        <h1 className="page-title">Produtos</h1>
+        <p className="mt-2 max-w-2xl text-sm text-zinc-600">
+          O que entra e sai do estoque (nome único no sistema). Use o mesmo nome que o time
+          usa no barracão e nas NFs.
+        </p>
+      </div>
       {err && (
         <p className="text-sm text-amber-700">{err}</p>
       )}
@@ -42,8 +48,8 @@ export default async function ProdutosPage({
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
         {payload.items.length === 0 && (
           <li className="px-4 py-6 text-sm text-zinc-500">
-            Nenhum produto cadastrado. Use o formulário acima para adicionar o
-            primeiro.
+            Nenhum produto ainda. Cadastre acima para poder lançar quantidades nas entradas e
+            retiradas.
           </li>
         )}
         {payload.items.map((p) => (

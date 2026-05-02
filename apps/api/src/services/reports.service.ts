@@ -7,9 +7,12 @@ function csvEscape(s: string) {
   return s;
 }
 
+/** BOM UTF-8 para Excel abrir acentuação corretamente. */
+const CSV_UTF8_BOM = "\uFEFF";
+
 function toCsv(headers: string[], rows: string[][]) {
   const lines = [headers.join(","), ...rows.map((r) => r.map(csvEscape).join(","))];
-  return lines.join("\r\n");
+  return CSV_UTF8_BOM + lines.join("\r\n");
 }
 
 export async function reportStockCurrentCsv() {
@@ -23,7 +26,13 @@ export async function reportStockCurrentCsv() {
     page += 1;
   }
   return toCsv(
-    ["cliente", "produto", "setor", "unidade", "quantidade"],
+    [
+      "Cliente",
+      "Produto",
+      "Setor no barracão",
+      "Unidade (UN/CX/PAL)",
+      "Quantidade em estoque",
+    ],
     rows.map((r) => [
       r.clientName,
       r.productName,
@@ -56,10 +65,19 @@ export async function reportMovementsCsv() {
   const pm = new Map(products.map((p) => [p.id, p.name]));
 
   return toCsv(
-    ["data", "tipo", "cliente", "produto", "quantidade", "unidade", "setor", "ref"],
+    [
+      "Data e hora (ISO)",
+      "Tipo",
+      "Cliente",
+      "Produto",
+      "Quantidade",
+      "Unidade",
+      "Setor",
+      "Referência interna",
+    ],
     movements.map((m) => [
       m.occurredAt.toISOString(),
-      m.type === MovementType.ENTRADA ? "entrada" : "saida",
+      m.type === MovementType.ENTRADA ? "Entrada" : "Saída",
       cm.get(m.clientId) ?? m.clientId,
       pm.get(m.productId) ?? m.productId,
       m.quantity.toString(),
@@ -98,5 +116,14 @@ export async function reportStockByClientCsv() {
     }
   }
 
-  return toCsv(["cliente", "produto", "setor", "unidade", "quantidade"], csvRows);
+  return toCsv(
+    [
+      "Cliente",
+      "Produto",
+      "Setor no barracão",
+      "Unidade (UN/CX/PAL)",
+      "Quantidade em estoque",
+    ],
+    csvRows
+  );
 }

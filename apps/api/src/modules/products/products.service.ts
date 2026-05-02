@@ -1,4 +1,4 @@
-import { createProductSchema } from "../../schemas";
+import { createProductSchema } from "@gestao/shared";
 import { z } from "zod";
 import * as repo from "./products.repository";
 
@@ -6,6 +6,7 @@ const listProductsSchema = z.object({
   q: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
+  sort: z.enum(["name", "recent"]).optional().default("name"),
 });
 
 const updateProductSchema = z.object({
@@ -22,6 +23,7 @@ export async function listProducts(query?: unknown) {
     where,
     page: f.page,
     pageSize: f.pageSize,
+    sort: f.sort,
   });
 
   return {

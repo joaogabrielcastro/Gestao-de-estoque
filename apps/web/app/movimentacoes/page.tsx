@@ -1,4 +1,12 @@
+import {
+  ClearFiltersLink,
+  HydrateListFilters,
+  SaveFiltersForm,
+} from "@/components/ListFilters";
+import { QuickActions } from "@/components/QuickActions";
 import { fetchJson } from "@/lib/api";
+import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
+import { formatDateTimePtBr } from "@/lib/format";
 import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 import Link from "next/link";
@@ -45,6 +53,16 @@ export default async function MovimentacoesPage({
   qs.set("pageSize", "20");
   const q = qs.toString();
 
+  const hasUrlFilters = Boolean(
+    sp.clientId ||
+      sp.productId ||
+      sp.type ||
+      sp.sector ||
+      sp.unit ||
+      sp.from ||
+      sp.to
+  );
+
   let payload: Paginated<Movement> = {
     items: [],
     page: 1,
@@ -70,8 +88,21 @@ export default async function MovimentacoesPage({
 
   return (
     <div className="space-y-6">
+      <HydrateListFilters
+        storageKey={FILTER_STORAGE.movimentacoes}
+        applyWhenEmpty={!hasUrlFilters}
+      />
       <h1 className="page-title">Movimentações de estoque</h1>
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-8">
+      <p className="text-sm text-zinc-600">
+        Histórico com data e hora para conferência de NF e saldo.{" "}
+        <strong>Entrada</strong> aumenta estoque; <strong>saída</strong> retira.
+      </p>
+      <QuickActions />
+      <SaveFiltersForm
+        action="/movimentacoes"
+        storageKey={FILTER_STORAGE.movimentacoes}
+      >
+      <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-8">
         <label className="text-xs text-zinc-600">
           Cliente
           <select
@@ -103,15 +134,15 @@ export default async function MovimentacoesPage({
           </select>
         </label>
         <label className="text-xs text-zinc-600">
-          Tipo
+          Tipo (entrada / saída)
           <select
             name="type"
             defaultValue={sp.type ?? ""}
             className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           >
             <option value="">Todos</option>
-            <option value="ENTRADA">Entrada</option>
-            <option value="SAIDA">Saída</option>
+            <option value="ENTRADA">Entrada de carga</option>
+            <option value="SAIDA">Saída (retirada)</option>
           </select>
         </label>
         <label className="text-xs text-zinc-600">
@@ -162,30 +193,35 @@ export default async function MovimentacoesPage({
             className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
         </label>
-        <div className="flex items-end gap-2">
-          <button className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="submit"
+            className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
             Filtrar
           </button>
-          <Link
+          <ClearFiltersLink
+            storageKey={FILTER_STORAGE.movimentacoes}
             href="/movimentacoes"
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
           >
             Limpar
-          </Link>
+          </ClearFiltersLink>
         </div>
-      </form>
+      </div>
+      </SaveFiltersForm>
       {err && (
         <p className="text-sm text-amber-700">{err}</p>
       )}
-      <div className="overflow-x-auto rounded-lg border border-zinc-200 bg-white">
+      <div className="hidden overflow-x-auto rounded-lg border border-zinc-200 bg-white md:block">
         <table className="w-full min-w-[640px] text-left text-sm">
           <thead className="border-b border-zinc-200 bg-zinc-50">
             <tr>
-              <th className="px-3 py-2 font-medium">Data</th>
+              <th className="px-3 py-2 font-medium">Data e hora</th>
               <th className="px-3 py-2 font-medium">Tipo</th>
               <th className="px-3 py-2 font-medium">Cliente</th>
               <th className="px-3 py-2 font-medium">Produto</th>
-              <th className="px-3 py-2 font-medium">Qtd</th>
+              <th className="px-3 py-2 font-medium">Quantidade</th>
               <th className="px-3 py-2 font-medium">Setor</th>
             </tr>
           </thead>
@@ -203,16 +239,16 @@ export default async function MovimentacoesPage({
                 className="border-b border-zinc-100"
               >
                 <td className="px-3 py-2 whitespace-nowrap text-zinc-600">
-                  {new Date(r.occurredAt).toLocaleString("pt-BR")}
+                  {formatDateTimePtBr(r.occurredAt)}
                 </td>
                 <td className="px-3 py-2">
                   {r.type === "ENTRADA" ? (
                     <span className="text-emerald-700">
-                      entrada
+                      Entrada
                     </span>
                   ) : (
                     <span className="text-rose-700">
-                      saída
+                      Saída
                     </span>
                   )}
                 </td>
@@ -227,6 +263,43 @@ export default async function MovimentacoesPage({
           </tbody>
         </table>
       </div>
+
+      <ul className="space-y-3 md:hidden">
+        {payload.items.length === 0 && !err && (
+          <li className="rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-500">
+            Nenhuma movimentação.
+          </li>
+        )}
+        {payload.items.map((r) => (
+          <li
+            key={`m-${r.id}`}
+            className="rounded-lg border border-zinc-200 bg-white p-4 text-sm shadow-sm"
+          >
+            <div className="text-xs text-zinc-500">
+              {formatDateTimePtBr(r.occurredAt)}
+            </div>
+            <div className="mt-1 font-medium text-zinc-900">{r.clientName}</div>
+            <div className="mt-1 text-zinc-700">{r.productName}</div>
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              <span
+                className={
+                  r.type === "ENTRADA"
+                    ? "rounded bg-emerald-50 px-2 py-0.5 text-emerald-800"
+                    : "rounded bg-rose-50 px-2 py-0.5 text-rose-800"
+                }
+              >
+                {r.type === "ENTRADA" ? "Entrada" : "Saída"}
+              </span>
+              <span className="rounded bg-zinc-100 px-2 py-0.5 font-mono">
+                Setor {r.sector}
+              </span>
+              <span className="tabular-nums font-medium">
+                {r.quantity} {r.unit}
+              </span>
+            </div>
+          </li>
+        ))}
+      </ul>
       {!err && payload.totalPages > 1 && (
         <div className="flex items-center gap-2 text-sm">
           <Link

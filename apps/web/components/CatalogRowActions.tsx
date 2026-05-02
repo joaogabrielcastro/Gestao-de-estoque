@@ -35,7 +35,7 @@ export function CatalogRowActions({
         method: "PATCH",
         body: { name: trimmed },
       });
-      showToast("success", "Salvo.");
+      showToast("success", "Nome atualizado.");
       setEditOpen(false);
       router.refresh();
     } catch (err) {
@@ -58,11 +58,11 @@ export function CatalogRowActions({
         Editar
       </button>
       <DeleteConfirmButton
-        title={kind === "client" ? "Excluir cliente?" : "Excluir produto?"}
+        title={kind === "client" ? "Excluir este cliente?" : "Excluir este produto?"}
         description={
           kind === "client"
-            ? "Só é possível excluir se não houver entradas ou saídas vinculadas."
-            : "Só é possível excluir se o produto não aparecer em nenhuma entrada ou saída."
+            ? "Só é permitido se não existir entrada de carga nem retirada (saída) ligada a esse cliente."
+            : "Só é permitido se o produto não estiver em nenhuma entrada nem retirada registrada."
         }
         onDelete={async () => {
           await fetchDelete(`${base}/${id}`);
@@ -77,10 +77,12 @@ export function CatalogRowActions({
         >
           <div className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-5 shadow-lg">
             <h2 className="text-lg font-semibold text-zinc-900">
-              {kind === "client" ? "Editar cliente" : "Editar produto"}
+              {kind === "client"
+                ? "Alterar nome do cliente"
+                : "Alterar nome do produto"}
             </h2>
-            <label className="mt-4 block text-sm">
-              Nome
+            <label className="mt-4 block text-sm text-zinc-700">
+              Nome na operação (entradas, estoque e retiradas)
               <input
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
@@ -103,7 +105,7 @@ export function CatalogRowActions({
                 className="inline-flex items-center gap-2 rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
                 {saving && <Spinner className="h-4 w-4 border-white" />}
-                Salvar
+                Salvar nome
               </button>
             </div>
           </div>

@@ -212,7 +212,7 @@ export function EntradaForm({
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          Setor
+          Setor no barracão
           <select
             value={sector}
             onChange={(e) =>
@@ -238,7 +238,7 @@ export function EntradaForm({
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        Números das NFs (um por linha ou separados por vírgula)
+        NFs — números das notas (um por linha ou separados por vírgula)
         <textarea
           value={invoiceText}
           onChange={(e) => setInvoiceText(e.target.value)}
@@ -279,7 +279,7 @@ export function EntradaForm({
               </select>
             </label>
             <label className="w-24 text-xs">
-              Qtd
+              Quantidade
               <input
                 type="text"
                 inputMode="decimal"

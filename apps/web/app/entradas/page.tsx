@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { InboundRowActions } from "@/components/InboundRowActions";
 import { InboundStatusSelect } from "@/components/InboundStatusSelect";
+import {
+  ClearFiltersLink,
+  HydrateListFilters,
+  SaveFiltersForm,
+} from "@/components/ListFilters";
+import { QuickActions } from "@/components/QuickActions";
 import { fetchJson } from "@/lib/api";
+import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
+import { formatDateTimePtBr } from "@/lib/format";
 import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 
@@ -50,6 +58,10 @@ export default async function EntradasPage({
   qs.set("pageSize", "8");
   const q = qs.toString();
 
+  const hasUrlFilters = Boolean(
+    sp.clientId || sp.nf || sp.productId || sp.status || sp.q
+  );
+
   let payload: Paginated<Inbound> = {
     items: [],
     page: 1,
@@ -75,16 +87,25 @@ export default async function EntradasPage({
 
   return (
     <div className="space-y-6">
+      <HydrateListFilters
+        storageKey={FILTER_STORAGE.entradas}
+        applyWhenEmpty={!hasUrlFilters}
+      />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <h1 className="page-title">Entradas de carga</h1>
         <Link
           href="/entradas/nova"
-          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          className="inline-flex min-h-10 items-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
         >
           Nova entrada
         </Link>
       </div>
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
+      <QuickActions />
+      <SaveFiltersForm
+        action="/entradas"
+        storageKey={FILTER_STORAGE.entradas}
+      >
+      <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
         <label className="text-xs text-zinc-600">
           Cliente
           <select
@@ -138,26 +159,31 @@ export default async function EntradasPage({
           </select>
         </label>
         <label className="text-xs text-zinc-600">
-          Busca geral
+          Busca (cidade, NF, fornecedor…)
           <input
             name="q"
             defaultValue={sp.q ?? ""}
-            placeholder="cliente, produto, cidade..."
+            placeholder="cidade, NF, cliente…"
             className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
         </label>
-        <div className="flex items-end gap-2">
-          <button className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="submit"
+            className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
             Filtrar
           </button>
-          <Link
+          <ClearFiltersLink
+            storageKey={FILTER_STORAGE.entradas}
             href="/entradas"
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
           >
             Limpar
-          </Link>
+          </ClearFiltersLink>
         </div>
-      </form>
+      </div>
+      </SaveFiltersForm>
       {err && (
         <p className="text-sm text-amber-700">{err}</p>
       )}
@@ -193,7 +219,7 @@ export default async function EntradasPage({
               {r.supplierOrBrand ? ` · ${r.supplierOrBrand}` : ""}
             </div>
             <div className="mt-1 text-xs text-zinc-500">
-              {new Date(r.createdAt).toLocaleString("pt-BR")} · NFs:{" "}
+              Registrado em {formatDateTimePtBr(r.createdAt)} · NFs:{" "}
               {r.invoices.map((i) => i.number).join(", ")}
             </div>
             <ul className="mt-2 list-inside list-disc text-xs text-zinc-600">

@@ -1,4 +1,7 @@
+import { QuickActions } from "@/components/QuickActions";
 import { fetchJson } from "@/lib/api";
+import { formatDateTimePtBr } from "@/lib/format";
+import type { Paginated } from "@/lib/types";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -104,11 +107,27 @@ export default async function DashboardPage({
   const sp = await searchParams;
   const period = sp.period ?? "7d";
   let data: Summary;
+  let recentClients: Array<{ id: string; name: string; createdAt: string }> = [];
+  let recentProducts: Array<{ id: string; name: string; createdAt: string }> = [];
   try {
     const payload = await fetchJson<unknown>(`/dashboard/summary?period=${period}`);
     const normalized = safeSummary(payload);
     if (!normalized) throw new Error("Payload inválido do dashboard");
     data = normalized;
+    try {
+      const [clientsRecent, productsRecent] = await Promise.all([
+        fetchJson<Paginated<{ id: string; name: string; createdAt: string }>>(
+          "/clients?page=1&pageSize=5&sort=recent"
+        ),
+        fetchJson<Paginated<{ id: string; name: string; createdAt: string }>>(
+          "/products?page=1&pageSize=5&sort=recent"
+        ),
+      ]);
+      recentClients = clientsRecent.items;
+      recentProducts = productsRecent.items;
+    } catch {
+      /* lista recente é opcional */
+    }
   } catch {
     return (
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900">
@@ -128,16 +147,79 @@ export default async function DashboardPage({
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="page-title">Dashboard</h1>
-        <form className="flex items-center gap-2 rounded-md border border-zinc-200 bg-white p-2 text-sm">
+        <h1 className="page-title">Painel</h1>
+        <form
+          method="get"
+          action="/dashboard"
+          className="flex flex-wrap items-center gap-2 rounded-md border border-zinc-200 bg-white p-2 text-sm"
+        >
           <select name="period" defaultValue={period} className="rounded border border-zinc-300 px-2 py-1">
             <option value="7d">Últimos 7 dias</option>
             <option value="30d">Últimos 30 dias</option>
             <option value="month">Mês atual</option>
           </select>
-          <button className="rounded bg-red-600 px-3 py-1 text-white">Aplicar</button>
+          <button type="submit" className="rounded bg-red-600 px-3 py-1 text-white">
+            Aplicar período
+          </button>
         </form>
       </div>
+
+      <QuickActions />
+
+      <section className="grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-2 text-sm font-medium text-zinc-500">
+            Últimos clientes cadastrados
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {recentClients.length === 0 && (
+              <li className="text-zinc-500">
+                Nenhum cliente ainda.{" "}
+                <Link className="text-red-700 underline" href="/clientes">
+                  Cadastrar
+                </Link>
+              </li>
+            )}
+            {recentClients.map((c) => (
+              <li
+                key={c.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-zinc-200 px-3 py-2"
+              >
+                <span className="font-medium">{c.name}</span>
+                <span className="text-xs text-zinc-500">
+                  {formatDateTimePtBr(c.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <h2 className="mb-2 text-sm font-medium text-zinc-500">
+            Últimos produtos cadastrados
+          </h2>
+          <ul className="space-y-2 text-sm">
+            {recentProducts.length === 0 && (
+              <li className="text-zinc-500">
+                Nenhum produto ainda.{" "}
+                <Link className="text-red-700 underline" href="/produtos">
+                  Cadastrar
+                </Link>
+              </li>
+            )}
+            {recentProducts.map((p) => (
+              <li
+                key={p.id}
+                className="flex flex-wrap items-baseline justify-between gap-2 rounded-md border border-zinc-200 px-3 py-2"
+              >
+                <span className="font-medium">{p.name}</span>
+                <span className="text-xs text-zinc-500">
+                  {formatDateTimePtBr(p.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </section>
       <section className="grid gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <div className="text-xs uppercase text-zinc-500">Cargas ativas</div>
@@ -231,8 +313,8 @@ export default async function DashboardPage({
               >
                 <div className="font-medium">{e.client.name}</div>
                 <div className="text-zinc-600">
-                  {e.destinationCity} · setor {e.sector} ·{" "}
-                  {new Date(e.createdAt).toLocaleString("pt-BR")}
+                  {e.destinationCity} · setor {e.sector} · registrado em{" "}
+                  {formatDateTimePtBr(e.createdAt)}
                 </div>
                 <div className="text-xs text-zinc-500">
                   NFs: {e.invoices.map((i) => i.number).join(", ")}
@@ -260,7 +342,7 @@ export default async function DashboardPage({
                   {o.destination}
                 </div>
                 <div className="text-xs text-zinc-500">
-                  {new Date(o.withdrawalDate).toLocaleString("pt-BR")}
+                  Retirada em {formatDateTimePtBr(o.withdrawalDate)}
                 </div>
               </li>
             ))}

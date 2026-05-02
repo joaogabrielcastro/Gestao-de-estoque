@@ -6,8 +6,8 @@
 import { PackUnit, Sector } from "@prisma/client";
 import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import { prisma } from "../src/lib/prisma";
-import { createInbound } from "../src/services/inbound.service";
-import { createOutbound } from "../src/services/outbound.service";
+import { createInbound } from "../src/modules/inbounds/inbounds.service";
+import { createOutbound } from "../src/modules/outbounds/outbounds.service";
 
 const RUN = Boolean(process.env.TEST_DATABASE_URL);
 

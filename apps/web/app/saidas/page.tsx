@@ -1,6 +1,14 @@
 import Link from "next/link";
 import { OutboundRowActions } from "@/components/OutboundRowActions";
+import {
+  ClearFiltersLink,
+  HydrateListFilters,
+  SaveFiltersForm,
+} from "@/components/ListFilters";
+import { QuickActions } from "@/components/QuickActions";
 import { fetchJson } from "@/lib/api";
+import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
+import { formatDateTimePtBr } from "@/lib/format";
 import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 
@@ -50,6 +58,10 @@ export default async function SaidasPage({
   qs.set("pageSize", "8");
   const q = qs.toString();
 
+  const hasUrlFilters = Boolean(
+    sp.clientId || sp.nf || sp.productId || sp.q || sp.from || sp.to
+  );
+
   let payload: Paginated<Outbound> = {
     items: [],
     page: 1,
@@ -75,16 +87,22 @@ export default async function SaidasPage({
 
   return (
     <div className="space-y-6">
+      <HydrateListFilters
+        storageKey={FILTER_STORAGE.saidas}
+        applyWhenEmpty={!hasUrlFilters}
+      />
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="page-title">Saídas de carga</h1>
+        <h1 className="page-title">Retiradas (saídas)</h1>
         <Link
           href="/saidas/nova"
-          className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+          className="inline-flex min-h-10 items-center rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
         >
-          Nova saída
+          Nova retirada
         </Link>
       </div>
-      <form className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
+      <QuickActions />
+      <SaveFiltersForm action="/saidas" storageKey={FILTER_STORAGE.saidas}>
+      <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
         <label className="text-xs text-zinc-600">
           Cliente
           <select
@@ -101,10 +119,11 @@ export default async function SaidasPage({
           </select>
         </label>
         <label className="text-xs text-zinc-600">
-          NF saída
+          NF de saída
           <input
             name="nf"
             defaultValue={sp.nf ?? ""}
+            placeholder="Número da NF"
             className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
         </label>
@@ -124,7 +143,7 @@ export default async function SaidasPage({
           </select>
         </label>
         <label className="text-xs text-zinc-600">
-          Busca geral
+          Busca (NF, destino, motorista…)
           <input
             name="q"
             defaultValue={sp.q ?? ""}
@@ -149,18 +168,23 @@ export default async function SaidasPage({
             className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
           />
         </label>
-        <div className="flex items-end gap-2">
-          <button className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700">
+        <div className="flex flex-wrap items-end gap-2">
+          <button
+            type="submit"
+            className="rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700"
+          >
             Filtrar
           </button>
-          <Link
+          <ClearFiltersLink
+            storageKey={FILTER_STORAGE.saidas}
             href="/saidas"
             className="rounded-md border border-zinc-300 px-3 py-2 text-sm"
           >
             Limpar
-          </Link>
+          </ClearFiltersLink>
         </div>
-      </form>
+      </div>
+      </SaveFiltersForm>
       {err && (
         <p className="text-sm text-amber-700">{err}</p>
       )}
@@ -175,10 +199,11 @@ export default async function SaidasPage({
           >
             <div className="font-medium">{r.client.name}</div>
             <div className="text-zinc-600">
-              NF saída {r.exitInvoiceNumber} · {r.pickedUpBy} → {r.destination}
+              NF saída {r.exitInvoiceNumber} · retirada por {r.pickedUpBy} →{" "}
+              {r.destination}
             </div>
             <div className="text-xs text-zinc-500">
-              {new Date(r.withdrawalDate).toLocaleString("pt-BR")}
+              Data da retirada: {formatDateTimePtBr(r.withdrawalDate)}
             </div>
             <ul className="mt-2 list-inside list-disc text-xs text-zinc-600">
               {r.lines.map((l) => (

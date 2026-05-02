@@ -9,12 +9,15 @@ export async function findProductsPage(params: {
   where?: ProductSearchWhere;
   page: number;
   pageSize: number;
+  sort?: "name" | "recent";
 }) {
-  const { where, page, pageSize } = params;
+  const { where, page, pageSize, sort = "name" } = params;
+  const orderBy =
+    sort === "recent" ? { createdAt: "desc" as const } : { name: "asc" as const };
   const [items, total] = await Promise.all([
     prisma.product.findMany({
       where,
-      orderBy: { name: "asc" },
+      orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),

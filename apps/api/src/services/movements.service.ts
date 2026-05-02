@@ -1,4 +1,4 @@
-import { MovementType, PackUnit, Sector } from "@prisma/client";
+import { MovementType, PackUnit, Prisma, Sector } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
 
@@ -91,21 +91,37 @@ export async function getCurrentStockSnapshot(query?: unknown) {
   const clientMap = new Map(clients.map((c) => [c.id, c.name]));
   const productMap = new Map(products.map((p) => [p.id, p.name]));
 
-  const where = {
+  const baseWhere: Prisma.StockBalanceWhereInput = {
     quantity: { gt: 0 },
     ...(f.clientId ? { clientId: f.clientId } : {}),
     ...(f.productId ? { productId: f.productId } : {}),
     ...(f.sector ? { sector: f.sector } : {}),
     ...(f.unit ? { unit: f.unit } : {}),
-    ...(nameFilter
-      ? {
-          AND: [
-            { clientId: { in: clients.map((c) => c.id) } },
-            { productId: { in: products.map((p) => p.id) } },
-          ],
-        }
-      : {}),
   };
+
+  let where: Prisma.StockBalanceWhereInput = baseWhere;
+
+  if (nameFilter) {
+    if (clients.length === 0 && products.length === 0) {
+      return {
+        items: [],
+        page: f.page,
+        pageSize: f.pageSize,
+        total: 0,
+        totalPages: 1,
+      };
+    }
+    const orClause: Prisma.StockBalanceWhereInput[] = [];
+    if (clients.length > 0) {
+      orClause.push({ clientId: { in: clients.map((c) => c.id) } });
+    }
+    if (products.length > 0) {
+      orClause.push({ productId: { in: products.map((p) => p.id) } });
+    }
+    where = {
+      AND: [baseWhere, { OR: orClause }],
+    };
+  }
 
   const [rows, total] = await Promise.all([
     prisma.stockBalance.findMany({

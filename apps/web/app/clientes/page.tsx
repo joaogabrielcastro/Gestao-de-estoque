@@ -34,7 +34,13 @@ export default async function ClientesPage({
 
   return (
     <div className="space-y-6">
-      <h1 className="page-title">Clientes</h1>
+      <div>
+        <h1 className="page-title">Clientes</h1>
+        <p className="mt-2 max-w-2xl text-sm text-zinc-600">
+          Cadastro das empresas ou contas que depositam carga no barracão. Esse nome aparece
+          nas entradas, no estoque e nas retiradas.
+        </p>
+      </div>
       {err && (
         <p className="text-sm text-amber-700">{err}</p>
       )}
@@ -42,8 +48,8 @@ export default async function ClientesPage({
       <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 bg-white">
         {payload.items.length === 0 && (
           <li className="px-4 py-6 text-sm text-zinc-500">
-            Nenhum cliente cadastrado. Use o formulário acima para adicionar o
-            primeiro.
+            Nenhum cliente ainda. Cadastre acima o primeiro para poder registrar entradas de
+            carga e retiradas.
           </li>
         )}
         {payload.items.map((c) => (

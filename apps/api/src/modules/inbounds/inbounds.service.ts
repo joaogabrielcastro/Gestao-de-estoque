@@ -1,5 +1,5 @@
 import { LoadStatus, Prisma } from "@prisma/client";
-import { createInboundSchema, updateInboundStatusSchema } from "../../schemas";
+import { createInboundSchema, updateInboundStatusSchema } from "@gestao/shared";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
 import { assertPositiveQty } from "../../domain/stock-policy";

@@ -1,35 +1,6 @@
-import { MovementType, PackUnit, Sector } from "@prisma/client";
-import { Prisma } from "@prisma/client";
+import { PackUnit, Prisma, Sector } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
-
-type BalanceKey = `${string}|${string}|${Sector}|${PackUnit}`;
-
-function movementKey(
-  clientId: string,
-  productId: string,
-  sector: Sector,
-  unit: PackUnit
-): BalanceKey {
-  return `${clientId}|${productId}|${sector}|${unit}`;
-}
-
-/** Agrega saldos a partir da tabela materializada de saldos. */
-export async function computeBalances() {
-  const balancesRows = await prisma.stockBalance.findMany({
-    where: {
-      quantity: { gt: new Prisma.Decimal(0) },
-    },
-  });
-  const balances = new Map<BalanceKey, Prisma.Decimal>();
-
-  for (const row of balancesRows) {
-    const k = movementKey(row.clientId, row.productId, row.sector, row.unit);
-    balances.set(k, new Prisma.Decimal(row.quantity));
-  }
-
-  return { balances };
-}
 
 const dashboardFilterSchema = z.object({
   period: z.enum(["7d", "30d", "month"]).default("7d"),
@@ -42,122 +13,131 @@ function getFromDate(period: "7d" | "30d" | "month") {
   return new Date(now.getFullYear(), now.getMonth(), 1);
 }
 
-export async function getDashboardSummary(query: unknown) {
-  const f = dashboardFilterSchema.parse(query);
-  const { balances } = await computeBalances();
-
-  const totalByUnit: Record<PackUnit, Prisma.Decimal> = {
+function zeroUnits(): Record<PackUnit, Prisma.Decimal> {
+  return {
     UN: new Prisma.Decimal(0),
     CX: new Prisma.Decimal(0),
     PAL: new Prisma.Decimal(0),
   };
+}
+
+export async function getDashboardSummary(query: unknown) {
+  const f = dashboardFilterSchema.parse(query);
+  const fromDate = getFromDate(f.period);
+
+  const [
+    clients,
+    unitTotals,
+    clientUnitRows,
+    sectorUnitRows,
+    movementCountInPeriod,
+    clientVolumeRows,
+    sectorVolumeRows,
+    activeLoads,
+    recentInbounds,
+    recentOutbounds,
+  ] = await Promise.all([
+    prisma.client.findMany({ select: { id: true, name: true } }),
+    prisma.stockBalance.groupBy({
+      by: ["unit"],
+      where: { quantity: { gt: 0 } },
+      _sum: { quantity: true },
+    }),
+    prisma.stockBalance.groupBy({
+      by: ["clientId", "unit"],
+      where: { quantity: { gt: 0 } },
+      _sum: { quantity: true },
+    }),
+    prisma.stockBalance.groupBy({
+      by: ["sector", "unit"],
+      where: { quantity: { gt: 0 } },
+      _sum: { quantity: true },
+    }),
+    prisma.stockMovement.count({
+      where: { occurredAt: { gte: fromDate } },
+    }),
+    prisma.stockMovement.groupBy({
+      by: ["clientId"],
+      where: { occurredAt: { gte: fromDate } },
+      _sum: { quantity: true },
+    }),
+    prisma.stockMovement.groupBy({
+      by: ["sector"],
+      where: { occurredAt: { gte: fromDate } },
+      _sum: { quantity: true },
+    }),
+    prisma.inbound.count({
+      where: { status: { not: "RETIRADA" } },
+    }),
+    prisma.inbound.findMany({
+      take: 10,
+      orderBy: { createdAt: "desc" },
+      include: { client: true, invoices: true },
+    }),
+    prisma.outbound.findMany({
+      take: 10,
+      orderBy: { withdrawalDate: "desc" },
+      include: { client: true },
+    }),
+  ]);
+
+  const clientName = new Map(clients.map((c) => [c.id, c.name]));
+
+  const totalByUnit = zeroUnits();
+  for (const row of unitTotals) {
+    totalByUnit[row.unit] = row._sum.quantity ?? new Prisma.Decimal(0);
+  }
 
   const byClient = new Map<
     string,
     { clientId: string; clientName: string; byUnit: Record<PackUnit, Prisma.Decimal> }
   >();
-  const bySector = new Map<
-    Sector,
-    Record<PackUnit, Prisma.Decimal>
-  >();
 
-  const clients = await prisma.client.findMany();
-  const clientName = new Map(clients.map((c) => [c.id, c.name]));
-
-  for (const s of Object.values(Sector)) {
-    bySector.set(s, {
-      UN: new Prisma.Decimal(0),
-      CX: new Prisma.Decimal(0),
-      PAL: new Prisma.Decimal(0),
-    });
-  }
-
-  for (const [key, qty] of balances) {
-    if (qty.lte(0)) continue;
-    const [clientId, _productId, sectorStr, unitStr] = key.split("|") as [
-      string,
-      string,
-      Sector,
-      PackUnit
-    ];
-    const sector = sectorStr as Sector;
-    const unit = unitStr as PackUnit;
-
-    totalByUnit[unit] = totalByUnit[unit].add(qty);
-
-    const cname = clientName.get(clientId) ?? clientId;
-    if (!byClient.has(clientId)) {
-      byClient.set(clientId, {
-        clientId,
-        clientName: cname,
-        byUnit: {
-          UN: new Prisma.Decimal(0),
-          CX: new Prisma.Decimal(0),
-          PAL: new Prisma.Decimal(0),
-        },
+  for (const row of clientUnitRows) {
+    const sum = row._sum.quantity ?? new Prisma.Decimal(0);
+    if (!byClient.has(row.clientId)) {
+      byClient.set(row.clientId, {
+        clientId: row.clientId,
+        clientName: clientName.get(row.clientId) ?? row.clientId,
+        byUnit: zeroUnits(),
       });
     }
-    const bc = byClient.get(clientId)!;
-    bc.byUnit[unit] = bc.byUnit[unit].add(qty);
-
-    const bs = bySector.get(sector)!;
-    bs[unit] = bs[unit].add(qty);
+    const bc = byClient.get(row.clientId)!;
+    bc.byUnit[row.unit] = sum;
   }
 
-  const fromDate = getFromDate(f.period);
-  const periodMovements = await prisma.stockMovement.findMany({
-    where: { occurredAt: { gte: fromDate } },
-  });
-  const activeLoads = await prisma.inbound.count({
-    where: { status: { not: "RETIRADA" } },
-  });
-  const topClientByVolumeMap = new Map<string, number>();
-  const topSectorByVolumeMap = new Map<Sector, number>();
-
-  for (const m of periodMovements) {
-    const q = Number(m.quantity);
-    topClientByVolumeMap.set(
-      m.clientId,
-      (topClientByVolumeMap.get(m.clientId) ?? 0) + q
-    );
-    topSectorByVolumeMap.set(
-      m.sector,
-      (topSectorByVolumeMap.get(m.sector) ?? 0) + q
-    );
+  const bySector = new Map<Sector, Record<PackUnit, Prisma.Decimal>>();
+  for (const s of Object.values(Sector)) {
+    bySector.set(s, zeroUnits());
+  }
+  for (const row of sectorUnitRows) {
+    const sum = row._sum.quantity ?? new Prisma.Decimal(0);
+    const bs = bySector.get(row.sector)!;
+    bs[row.unit] = sum;
   }
 
   let topClientId: string | null = null;
   let topClientVolume = 0;
-  for (const [clientId, volume] of topClientByVolumeMap.entries()) {
-    if (volume > topClientVolume) {
-      topClientVolume = volume;
-      topClientId = clientId;
+  for (const row of clientVolumeRows) {
+    const vol = Number(row._sum.quantity ?? 0);
+    if (vol > topClientVolume) {
+      topClientVolume = vol;
+      topClientId = row.clientId;
     }
   }
 
   let topSector: Sector | null = null;
   let topSectorVolume = 0;
-  for (const [sector, volume] of topSectorByVolumeMap.entries()) {
-    if (volume > topSectorVolume) {
-      topSectorVolume = volume;
-      topSector = sector;
+  for (const row of sectorVolumeRows) {
+    const vol = Number(row._sum.quantity ?? 0);
+    if (vol > topSectorVolume) {
+      topSectorVolume = vol;
+      topSector = row.sector;
     }
   }
 
   const topClientName =
     (topClientId ? clientName.get(topClientId) : null) ?? "Sem dados";
-
-  const recentInbounds = await prisma.inbound.findMany({
-    take: 10,
-    orderBy: { createdAt: "desc" },
-    include: { client: true, invoices: true },
-  });
-
-  const recentOutbounds = await prisma.outbound.findMany({
-    take: 10,
-    orderBy: { withdrawalDate: "desc" },
-    include: { client: true },
-  });
 
   return {
     period: f.period,
@@ -173,7 +153,7 @@ export async function getDashboardSummary(query: unknown) {
         sector: topSector,
         volume: topSectorVolume,
       },
-      movementCountInPeriod: periodMovements.length,
+      movementCountInPeriod,
     },
     totalByUnit: {
       UN: totalByUnit.UN.toString(),
