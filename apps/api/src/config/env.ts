@@ -6,6 +6,15 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(3011),
   CORS_ORIGIN: z.string().default("http://localhost:3000"),
   API_RATE_LIMIT_MAX: z.coerce.number().int().min(1).default(300),
+  /** Atrás de Traefik/Coolify o cliente vem em X-Forwarded-For — sem trust proxy o express-rate-limit quebra (ERR_ERL_UNEXPECTED_X_FORWARDED_FOR). */
+  TRUST_PROXY: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => {
+      if (v === "true") return true;
+      if (v === "false") return false;
+      return process.env.NODE_ENV === "production";
+    }),
   ENABLE_GLOBAL_SEARCH: z
     .enum(["true", "false"])
     .default("false")

@@ -105,6 +105,43 @@ docker compose build --build-arg NEXT_PUBLIC_API_URL=https://seu-dominio/api web
 
 No sistema web, o menu **Guia** (`/guia`) traz o passo a passo sugerido para a operação no barracão.
 
+## Deploy (Coolify, Railway, Nixpacks)
+
+Este projeto é um **monorepo npm**: o pacote `@gestao/shared` vem de `packages/shared` e **não existe no npm público**.
+
+Se o provedor usar como pasta base apenas `apps/api` ou `apps/web`, o build **não copia** `packages/shared`, o `npm install` tenta baixar `@gestao/shared` do registry e falha com **`404 Not Found`**.
+
+**Configure sempre o contexto na raiz do repositório** (onde estão `package.json`, `packages/` e `apps/`).
+
+### Opção A — Dockerfile (recomendado)
+
+Na raiz do clone:
+
+| Serviço | Dockerfile           | Contexto do build |
+|---------|----------------------|-------------------|
+| API     | `apps/api/Dockerfile` | `.` (raiz do repo) |
+| Web     | `apps/web/Dockerfile` | `.` (raiz do repo) |
+
+Variáveis de ambiente e **build-args** da web: `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_APP_URL` (URLs públicas do seu domínio).
+
+### Opção B — Nixpacks
+
+1. **Base Directory / Root Directory:** vazio ou `.` (raiz), **não** `apps/api`.
+2. O arquivo `nixpacks.toml` na raiz compila `@gestao/shared` e depois a API.
+3. Para o **frontend**, prefira o Dockerfile `apps/web/Dockerfile` com contexto na raiz (build standalone do Next).
+
+Remove overrides no Coolify que façam `npm install` só dentro de `apps/api` sem o restante do monorepo.
+
+### API atrás de proxy (Traefik / Coolify)
+
+O Traefik envia `X-Forwarded-For`. A API ativa **`trust proxy`** automaticamente em `NODE_ENV=production` para o rate limit e o Express funcionarem (evita `ERR_ERL_UNEXPECTED_X_FORWARDED_FOR`). Em desenvolvimento local isso fica desligado. Para forçar: `TRUST_PROXY=true` ou `TRUST_PROXY=false`.
+
+### Next.js `output: "standalone"`
+
+O script `npm run start` da web executa `node .next/standalone/apps/web/server.js` (não use `next start` com standalone). O Dockerfile da web já faz o equivalente.
+
+Se aparecer **Failed to find Server Action**: faça deploy da mesma versão do front e da API, limpe cache do navegador ou teste em aba anônima (mistura de builds antigos e novos).
+
 ## Checklist de homologação
 
 1. Execute `npm run db:push && npm run db:seed` (ou migrations + seed em ambiente de teste).

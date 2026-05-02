@@ -1,0 +1,19 @@
+# Monorepo: exige que o contexto de build seja a RAIZ do repositório (onde está este arquivo).
+# No Coolify: Base Directory = vazio ou ".", NÃO "apps/api".
+# Caso contrário @gestao/shared (packages/shared) não entra no build e o npm retorna 404.
+
+[variables]
+NIXPACKS_NODE_VERSION = "22"
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "npm run build -w @gestao/shared",
+  "npm run db:generate -w @gestao/api",
+  "npm run build -w @gestao/api",
+]
+
+[start]
+cmd = "cd apps/api && npx prisma db push && node dist/index.js"

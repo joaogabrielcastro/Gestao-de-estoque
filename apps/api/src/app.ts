@@ -19,6 +19,9 @@ function normalizeOrigin(value: string) {
 
 export function createApp() {
   const app = express();
+  if (env.TRUST_PROXY) {
+    app.set("trust proxy", 1);
+  }
   app.use(helmet());
   app.use(requestContext);
   app.use(requestLogger);
@@ -45,9 +48,16 @@ export function createApp() {
       max: env.API_RATE_LIMIT_MAX,
       standardHeaders: true,
       legacyHeaders: false,
-    })
+    }),
   );
   app.use(express.json());
+  app.get("/", (_req, res) => {
+    res.json({
+      ok: true,
+      service: "gestao-api",
+      health: "/api/health",
+    });
+  });
   app.use("/api", apiRouter);
   app.use(errorHandler);
   return app;
