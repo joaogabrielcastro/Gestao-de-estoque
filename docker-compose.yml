@@ -27,7 +27,6 @@ services:
       HOST: "0.0.0.0"
       CORS_ORIGIN: http://localhost:3000
       API_RATE_LIMIT_MAX: "300"
-      ENABLE_GLOBAL_SEARCH: "false"
     healthcheck:
       test:
         [
@@ -54,7 +53,6 @@ services:
       # Browser (cliente): acessa a API publicada no host
       NEXT_PUBLIC_API_URL: http://localhost:3011/api
       NEXT_PUBLIC_APP_URL: http://localhost:3000
-      NEXT_PUBLIC_ENABLE_GLOBAL_SEARCH: "false"
       # Server Components dentro do container: use o hostname do serviço Docker
       API_URL: http://api:3011/api
     depends_on:

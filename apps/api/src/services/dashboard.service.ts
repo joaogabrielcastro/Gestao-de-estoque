@@ -1,6 +1,7 @@
 import { PackUnit, Prisma, Sector } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { getPositiveStockBalances } from "./stock.service";
 
 const dashboardFilterSchema = z.object({
   period: z.enum(["7d", "30d", "month"]).default("7d"),
@@ -27,9 +28,7 @@ export async function getDashboardSummary(query: unknown) {
 
   const [
     clients,
-    unitTotals,
-    clientUnitRows,
-    sectorUnitRows,
+    positiveBalances,
     movementCountInPeriod,
     clientVolumeRows,
     sectorVolumeRows,
@@ -38,21 +37,7 @@ export async function getDashboardSummary(query: unknown) {
     recentOutbounds,
   ] = await Promise.all([
     prisma.client.findMany({ select: { id: true, name: true } }),
-    prisma.stockBalance.groupBy({
-      by: ["unit"],
-      where: { quantity: { gt: 0 } },
-      _sum: { quantity: true },
-    }),
-    prisma.stockBalance.groupBy({
-      by: ["clientId", "unit"],
-      where: { quantity: { gt: 0 } },
-      _sum: { quantity: true },
-    }),
-    prisma.stockBalance.groupBy({
-      by: ["sector", "unit"],
-      where: { quantity: { gt: 0 } },
-      _sum: { quantity: true },
-    }),
+    getPositiveStockBalances({}),
     prisma.stockMovement.count({
       where: { occurredAt: { gte: fromDate } },
     }),
@@ -84,17 +69,18 @@ export async function getDashboardSummary(query: unknown) {
   const clientName = new Map(clients.map((c) => [c.id, c.name]));
 
   const totalByUnit = zeroUnits();
-  for (const row of unitTotals) {
-    totalByUnit[row.unit] = row._sum.quantity ?? new Prisma.Decimal(0);
-  }
-
   const byClient = new Map<
     string,
     { clientId: string; clientName: string; byUnit: Record<PackUnit, Prisma.Decimal> }
   >();
+  const bySector = new Map<Sector, Record<PackUnit, Prisma.Decimal>>();
+  for (const s of Object.values(Sector)) {
+    bySector.set(s, zeroUnits());
+  }
 
-  for (const row of clientUnitRows) {
-    const sum = row._sum.quantity ?? new Prisma.Decimal(0);
+  for (const row of positiveBalances) {
+    totalByUnit[row.unit] = totalByUnit[row.unit].add(row.quantity);
+
     if (!byClient.has(row.clientId)) {
       byClient.set(row.clientId, {
         clientId: row.clientId,
@@ -103,17 +89,10 @@ export async function getDashboardSummary(query: unknown) {
       });
     }
     const bc = byClient.get(row.clientId)!;
-    bc.byUnit[row.unit] = sum;
-  }
+    bc.byUnit[row.unit] = bc.byUnit[row.unit].add(row.quantity);
 
-  const bySector = new Map<Sector, Record<PackUnit, Prisma.Decimal>>();
-  for (const s of Object.values(Sector)) {
-    bySector.set(s, zeroUnits());
-  }
-  for (const row of sectorUnitRows) {
-    const sum = row._sum.quantity ?? new Prisma.Decimal(0);
     const bs = bySector.get(row.sector)!;
-    bs[row.unit] = sum;
+    bs[row.unit] = bs[row.unit].add(row.quantity);
   }
 
   let topClientId: string | null = null;

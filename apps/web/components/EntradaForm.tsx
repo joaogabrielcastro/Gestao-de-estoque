@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { requestJson } from "@/lib/api";
+import { api } from "@/lib/api";
 import { loadCatalogs, type CatalogItem } from "@/lib/catalogs";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/ToastProvider";
@@ -134,7 +134,7 @@ export function EntradaForm({
     setLoading(true);
     try {
       const isEdit = mode === "edit" && inboundId;
-      await requestJson(isEdit ? `/inbounds/${inboundId}` : "/inbounds", {
+      await api(isEdit ? `/inbounds/${inboundId}` : "/inbounds", {
         method: isEdit ? "PUT" : "POST",
         body,
       });

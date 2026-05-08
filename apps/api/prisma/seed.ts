@@ -2,6 +2,7 @@ import {
   MovementType,
   PackUnit,
   PrismaClient,
+  ReferenceType,
   Sector,
 } from "@prisma/client";
 
@@ -55,29 +56,8 @@ async function addInbound(params: {
         quantity: line.quantity,
         unit: line.unit,
         sector: params.sector,
-        referenceType: "INBOUND",
+        referenceType: ReferenceType.INBOUND,
         referenceId: inbound.id,
-      },
-    });
-
-    await prisma.stockBalance.upsert({
-      where: {
-        clientId_productId_sector_unit: {
-          clientId: params.clientId,
-          productId: line.productId,
-          sector: params.sector,
-          unit: line.unit,
-        },
-      },
-      create: {
-        clientId: params.clientId,
-        productId: line.productId,
-        sector: params.sector,
-        unit: line.unit,
-        quantity: line.quantity,
-      },
-      update: {
-        quantity: { increment: line.quantity },
       },
     });
   }
@@ -125,29 +105,14 @@ async function addOutbound(params: {
         quantity: line.quantity,
         unit: line.unit,
         sector: line.sector,
-        referenceType: "OUTBOUND",
+        referenceType: ReferenceType.OUTBOUND,
         referenceId: outbound.id,
-      },
-    });
-
-    await prisma.stockBalance.update({
-      where: {
-        clientId_productId_sector_unit: {
-          clientId: params.clientId,
-          productId: line.productId,
-          sector: line.sector,
-          unit: line.unit,
-        },
-      },
-      data: {
-        quantity: { decrement: line.quantity },
       },
     });
   }
 }
 
 async function main() {
-  await prisma.stockBalance.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.outboundLine.deleteMany();
   await prisma.outbound.deleteMany();

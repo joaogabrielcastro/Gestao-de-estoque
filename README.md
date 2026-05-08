@@ -39,13 +39,6 @@ Monorepo npm com API **Express + Prisma + PostgreSQL** e frontend **Next.js (App
 
 5. Web — copie `apps/web/.env.example` para `apps/web/.env.local` se precisar mudar URLs. Padrões: `NEXT_PUBLIC_API_URL=http://localhost:3011/api` e `NEXT_PUBLIC_APP_URL=http://localhost:3000` (usado no QR da **folha de carga**).
 
-### Busca global (opcional)
-
-- API: `ENABLE_GLOBAL_SEARCH=true`
-- Web: `NEXT_PUBLIC_ENABLE_GLOBAL_SEARCH=true`
-
-Os dois devem estar alinhados; o menu **Busca** só aparece quando a variável pública está habilitada.
-
 ## Testes de integração (API)
 
 Usam Postgres real. Crie um banco só para teste e exporte a URL antes de rodar:

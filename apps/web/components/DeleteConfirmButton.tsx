@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { requestJson } from "@/lib/api";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -87,6 +86,3 @@ export function DeleteConfirmButton({
   );
 }
 
-export async function fetchDelete(path: string) {
-  await requestJson<void>(path, { method: "DELETE" });
-}

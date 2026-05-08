@@ -15,10 +15,6 @@ const envSchema = z.object({
       if (v === "false") return false;
       return process.env.NODE_ENV === "production";
     }),
-  ENABLE_GLOBAL_SEARCH: z
-    .enum(["true", "false"])
-    .default("false")
-    .transform((v) => v === "true"),
 });
 
 export const env = envSchema.parse(process.env);

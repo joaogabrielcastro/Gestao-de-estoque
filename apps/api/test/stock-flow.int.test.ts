@@ -12,7 +12,6 @@ import { createOutbound } from "../src/modules/outbounds/outbounds.service";
 const RUN = Boolean(process.env.TEST_DATABASE_URL);
 
 async function resetDb() {
-  await prisma.stockBalance.deleteMany();
   await prisma.stockMovement.deleteMany();
   await prisma.outboundLine.deleteMany();
   await prisma.outbound.deleteMany();
@@ -83,7 +82,7 @@ describe.skipIf(!RUN)("integração: estoque e NFs", () => {
           },
         ],
       })
-    ).rejects.toThrow(/Estoque insuficiente/);
+    ).rejects.toThrow(/Saldo insuficiente/);
 
     await expect(
       createOutbound({

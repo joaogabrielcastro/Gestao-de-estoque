@@ -18,52 +18,29 @@ export function apiUrl(path: string) {
   return `${base}${p}`;
 }
 
-export async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers || {}),
-    },
-    cache: "no-store",
-  });
-  if (!res.ok) {
-    let msg = res.statusText;
-    try {
-      const j = (await res.json()) as { message?: string };
-      if (j.message) msg = j.message;
-    } catch {
-      /* ignore */
-    }
-    throw new Error(msg);
-  }
-  return res.json() as Promise<T>;
-}
+type ApiInit = Omit<RequestInit, "body"> & { body?: unknown };
 
-export async function requestJson<TResponse, TBody = unknown>(
+/**
+ * Cliente HTTP único da web. Cobre GET (sem body), métodos com payload
+ * (POST/PUT/PATCH passando `body`) e DELETE (sem body, retorna `undefined`).
+ * Lança Error com mensagem amigável extraída do JSON de erro da API.
+ */
+export async function api<T = unknown>(
   path: string,
-  options?: {
-    method?: "POST" | "PUT" | "PATCH" | "DELETE";
-    body?: TBody;
-    init?: RequestInit;
-  }
-): Promise<TResponse> {
-  const method = options?.method ?? "POST";
+  init?: ApiInit
+): Promise<T> {
+  const { body, headers, ...rest } = init ?? {};
   const res = await fetch(apiUrl(path), {
-    ...(options?.init ?? {}),
-    method,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options?.init?.headers ?? {}),
-    },
-    body: options?.body === undefined ? undefined : JSON.stringify(options.body),
+    ...rest,
+    headers: { "Content-Type": "application/json", ...(headers ?? {}) },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
     cache: "no-store",
   });
   if (!res.ok) {
     throw new Error(await readApiErrorMessage(res));
   }
   if (res.status === 204) {
-    return undefined as TResponse;
+    return undefined as T;
   }
-  return res.json() as Promise<TResponse>;
+  return res.json() as Promise<T>;
 }

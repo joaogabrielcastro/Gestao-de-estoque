@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { requestJson } from "@/lib/api";
+import { api } from "@/lib/api";
 import { Spinner } from "@/components/ui/Spinner";
 
 export function ClienteForm() {
@@ -18,7 +18,7 @@ export function ClienteForm() {
     setError(null);
     setLoading(true);
     try {
-      await requestJson("/clients", {
+      await api("/clients", {
         method: "POST",
         body: { name },
       });

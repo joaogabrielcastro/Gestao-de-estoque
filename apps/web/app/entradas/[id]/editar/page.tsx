@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { EntradaForm } from "@/components/EntradaForm";
-import { fetchJson } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export const metadata = {
   title: "Editar entrada — Gestão de estoque",
@@ -29,7 +29,7 @@ export default async function EditarEntradaPage({
   const { id } = await params;
   let row: Inbound;
   try {
-    row = await fetchJson<Inbound>(`/inbounds/${id}`);
+    row = await api<Inbound>(`/inbounds/${id}`);
   } catch {
     notFound();
   }

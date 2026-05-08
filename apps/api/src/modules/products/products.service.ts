@@ -1,5 +1,7 @@
 import { createProductSchema } from "@gestao/shared";
 import { z } from "zod";
+import { conflict, notFound } from "../../lib/http-error";
+import { paginated } from "../../lib/pagination";
 import * as repo from "./products.repository";
 
 const listProductsSchema = z.object({
@@ -26,13 +28,7 @@ export async function listProducts(query?: unknown) {
     sort: f.sort,
   });
 
-  return {
-    items,
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
+  return paginated(items, f.page, f.pageSize, total);
 }
 
 export async function createProduct(body: unknown) {
@@ -51,17 +47,12 @@ export async function updateProduct(id: string, body: unknown) {
 
 export async function deleteProduct(id: string) {
   const row = await repo.findProductDeleteDependencies(id);
-  if (!row) {
-    const err = new Error("Produto não encontrado");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!row) throw notFound("Produto não encontrado");
   if (row._count.inboundLines > 0 || row._count.outboundLines > 0) {
-    const err = new Error(
-      "Não é possível excluir: o produto aparece em entradas ou saídas."
+    throw conflict(
+      "Não é possível excluir: o produto aparece em entradas ou saídas.",
+      "HAS_DEPENDENCIES"
     );
-    (err as { status?: number }).status = 409;
-    throw err;
   }
   await repo.deleteProductById(id);
 }

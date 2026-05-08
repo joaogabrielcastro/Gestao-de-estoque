@@ -31,6 +31,11 @@ enum LoadStatus {
   RETIRADA
 }
 
+enum ReferenceType {
+  INBOUND
+  OUTBOUND
+}
+
 model Client {
   id        String   @id @default(uuid())
   name      String
@@ -65,7 +70,7 @@ model Inbound {
   invoices InboundInvoice[]
   lines    InboundLine[]
 
-  @@index([clientId])
+  @@index([clientId, createdAt])
 }
 
 model InboundInvoice {
@@ -109,7 +114,7 @@ model Outbound {
   client Client         @relation(fields: [clientId], references: [id])
   lines  OutboundLine[]
 
-  @@index([clientId])
+  @@index([clientId, withdrawalDate])
   @@index([exitInvoiceNumber])
 }
 
@@ -129,34 +134,20 @@ model OutboundLine {
 }
 
 model StockMovement {
-  id            String       @id @default(uuid())
+  id            String        @id @default(uuid())
   occurredAt    DateTime
   type          MovementType
   clientId      String
   productId     String
-  quantity      Decimal      @db.Decimal(18, 4)
+  quantity      Decimal       @db.Decimal(18, 4)
   unit          PackUnit
   sector        Sector
-  referenceType String
+  referenceType ReferenceType
   referenceId   String
 
   @@index([occurredAt])
   @@index([clientId, productId, occurredAt])
   @@index([clientId, productId, sector, unit])
   @@index([type])
-}
-
-model StockBalance {
-  id        String   @id @default(uuid())
-  clientId  String
-  productId String
-  sector    Sector
-  unit      PackUnit
-  quantity  Decimal  @db.Decimal(18, 4)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([clientId, productId, sector, unit])
-  @@index([clientId, productId])
-  @@index([sector, unit])
+  @@index([referenceType, referenceId])
 }

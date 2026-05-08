@@ -1,5 +1,6 @@
 import type { NextFunction, Request, Response } from "express";
 import { ZodError } from "zod";
+import { HttpError } from "../lib/http-error";
 
 export function errorHandler(
   err: unknown,
@@ -8,6 +9,7 @@ export function errorHandler(
   _next: NextFunction
 ) {
   const requestId = res.locals.requestId as string | undefined;
+
   if (err instanceof ZodError) {
     return res.status(400).json({
       message: "Validação falhou",
@@ -15,24 +17,25 @@ export function errorHandler(
       requestId,
     });
   }
-  const status = (err as { status?: number }).status ?? 500;
-  const message =
-    status >= 500
-      ? "Erro interno. Tente novamente em instantes."
-      : err instanceof Error
-        ? err.message
-        : "Erro na requisição";
 
-  if (status >= 500) {
-    console.error(
-      JSON.stringify({
-        level: "error",
-        type: "request_error",
-        requestId,
-        status,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    );
+  if (err instanceof HttpError) {
+    return res
+      .status(err.status)
+      .json({ message: err.message, code: err.code, requestId });
   }
-  return res.status(status).json({ message, requestId });
+
+  const status = 500;
+  console.error(
+    JSON.stringify({
+      level: "error",
+      type: "request_error",
+      requestId,
+      status,
+      error: err instanceof Error ? err.message : String(err),
+    })
+  );
+  return res.status(status).json({
+    message: "Erro interno. Tente novamente em instantes.",
+    requestId,
+  });
 }

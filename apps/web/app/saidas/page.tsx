@@ -5,11 +5,10 @@ import {
   HydrateListFilters,
   SaveFiltersForm,
 } from "@/components/ListFilters";
-import { QuickActions } from "@/components/QuickActions";
-import { fetchJson } from "@/lib/api";
+import { Pagination } from "@/components/Pagination";
+import { api } from "@/lib/api";
 import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
 import { formatDateTimePtBr } from "@/lib/format";
-import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -74,15 +73,15 @@ export default async function SaidasPage({
   let err: string | null = null;
   try {
     const [outboundsPayload, clientsPayload, productsPayload] = await Promise.all([
-      fetchJson<Paginated<Outbound>>(`/outbounds${q ? `?${q}` : ""}`),
-      fetchJson<Paginated<Client>>("/clients?page=1&pageSize=200"),
-      fetchJson<Paginated<Product>>("/products?page=1&pageSize=200"),
+      api<Paginated<Outbound>>(`/outbounds${q ? `?${q}` : ""}`),
+      api<Paginated<Client>>("/clients?page=1&pageSize=200"),
+      api<Paginated<Product>>("/products?page=1&pageSize=200"),
     ]);
     payload = outboundsPayload;
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = APP_MESSAGES.API_UNAVAILABLE;
+    err = "API indisponível.";
   }
 
   return (
@@ -100,7 +99,6 @@ export default async function SaidasPage({
           Nova retirada
         </Link>
       </div>
-      <QuickActions />
       <SaveFiltersForm action="/saidas" storageKey={FILTER_STORAGE.saidas}>
       <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
         <label className="text-xs text-zinc-600">
@@ -217,24 +215,14 @@ export default async function SaidasPage({
           </li>
         ))}
       </ul>
-      {!err && payload.totalPages > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/saidas?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.max(1, payload.page - 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {payload.page} de {payload.totalPages} ({payload.total} itens)
-          </span>
-          <Link
-            href={`/saidas?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.min(payload.totalPages, payload.page + 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page >= payload.totalPages ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Próxima
-          </Link>
-        </div>
+      {!err && (
+        <Pagination
+          basePath="/saidas"
+          query={qs}
+          page={payload.page}
+          totalPages={payload.totalPages}
+          total={payload.total}
+        />
       )}
     </div>
   );

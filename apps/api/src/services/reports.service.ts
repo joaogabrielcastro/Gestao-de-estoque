@@ -1,6 +1,6 @@
 import { MovementType } from "@prisma/client";
 import { prisma } from "../lib/prisma";
-import { getCurrentStockSnapshot } from "./movements.service";
+import { getStockSnapshot } from "./stock.service";
 
 function csvEscape(s: string) {
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
@@ -16,11 +16,11 @@ function toCsv(headers: string[], rows: string[][]) {
 }
 
 export async function reportStockCurrentCsv() {
-  const rows: Awaited<ReturnType<typeof getCurrentStockSnapshot>>["items"] = [];
+  const rows: Awaited<ReturnType<typeof getStockSnapshot>>["items"] = [];
   let page = 1;
   const pageSize = 1000;
   while (true) {
-    const payload = await getCurrentStockSnapshot({ page, pageSize });
+    const payload = await getStockSnapshot({ page, pageSize });
     rows.push(...payload.items);
     if (page >= payload.totalPages) break;
     page += 1;
@@ -89,11 +89,11 @@ export async function reportMovementsCsv() {
 }
 
 export async function reportStockByClientCsv() {
-  const snapshot: Awaited<ReturnType<typeof getCurrentStockSnapshot>>["items"] = [];
+  const snapshot: Awaited<ReturnType<typeof getStockSnapshot>>["items"] = [];
   let page = 1;
   const pageSize = 1000;
   while (true) {
-    const payload = await getCurrentStockSnapshot({ page, pageSize });
+    const payload = await getStockSnapshot({ page, pageSize });
     snapshot.push(...payload.items);
     if (page >= payload.totalPages) break;
     page += 1;

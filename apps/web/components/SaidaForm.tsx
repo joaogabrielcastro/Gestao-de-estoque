@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { requestJson } from "@/lib/api";
+import { api } from "@/lib/api";
 import { loadCatalogs, type CatalogItem } from "@/lib/catalogs";
 import { Spinner } from "@/components/ui/Spinner";
 
@@ -17,6 +17,19 @@ type Line = {
   unit: "UN" | "CX" | "PAL";
   sector: "A" | "B" | "C" | "D";
 };
+
+type StockRow = {
+  clientId: string;
+  productId: string;
+  sector: "A" | "B" | "C" | "D";
+  unit: "UN" | "CX" | "PAL";
+  quantity: string;
+};
+
+type StockKey = `${string}|${"A" | "B" | "C" | "D"}|${"UN" | "CX" | "PAL"}`;
+function makeStockKey(productId: string, sector: Line["sector"], unit: Line["unit"]): StockKey {
+  return `${productId}|${sector}|${unit}`;
+}
 
 function isoToDatetimeLocal(iso: string) {
   const d = new Date(iso);
@@ -75,6 +88,20 @@ export function SaidaForm({
   const [stockAlert, setStockAlert] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [stock, setStock] = useState<StockRow[]>([]);
+  const [stockLoading, setStockLoading] = useState(false);
+  const initialLineKeysRef = useRef<Map<StockKey, string>>(new Map());
+
+  useEffect(() => {
+    if (mode === "edit" && initial) {
+      const m = new Map<StockKey, string>();
+      for (const l of initial.lines) {
+        const k = makeStockKey(l.productId, l.sector, l.unit);
+        m.set(k, (parseFloat(m.get(k) ?? "0") + parseFloat(l.quantity || "0")).toString());
+      }
+      initialLineKeysRef.current = m;
+    }
+  }, [mode, initial]);
 
   useEffect(() => {
     void (async () => {
@@ -108,6 +135,48 @@ export function SaidaForm({
       }
     })();
   }, [mode, initial]);
+
+  useEffect(() => {
+    if (!clientId) {
+      setStock([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    setStockLoading(true);
+    void (async () => {
+      try {
+        const payload = await api<{ items: StockRow[] }>(
+          `/stock?clientId=${encodeURIComponent(clientId)}&pageSize=10000`,
+          { signal: ctrl.signal }
+        );
+        if (!ctrl.signal.aborted) {
+          setStock(payload.items);
+        }
+      } catch {
+        if (!ctrl.signal.aborted) setStock([]);
+      } finally {
+        if (!ctrl.signal.aborted) setStockLoading(false);
+      }
+    })();
+    return () => ctrl.abort();
+  }, [clientId]);
+
+  const stockMap = useMemo(() => {
+    const m = new Map<StockKey, number>();
+    for (const r of stock) {
+      m.set(makeStockKey(r.productId, r.sector, r.unit), parseFloat(r.quantity));
+    }
+    return m;
+  }, [stock]);
+
+  function availableForLine(line: Line): number | null {
+    if (!line.productId) return null;
+    const k = makeStockKey(line.productId, line.sector, line.unit);
+    const current = stockMap.get(k) ?? 0;
+    if (mode !== "edit") return current;
+    const reserved = parseFloat(initialLineKeysRef.current.get(k) ?? "0");
+    return current + (Number.isFinite(reserved) ? reserved : 0);
+  }
 
   function addLine() {
     const pid = products[0]?.id ?? "";
@@ -161,7 +230,7 @@ export function SaidaForm({
     setLoading(true);
     try {
       const isEdit = mode === "edit" && outboundId;
-      await requestJson(isEdit ? `/outbounds/${outboundId}` : "/outbounds", {
+      await api(isEdit ? `/outbounds/${outboundId}` : "/outbounds", {
         method: isEdit ? "PUT" : "POST",
         body,
       });
@@ -287,70 +356,96 @@ export function SaidaForm({
               + Linha
             </button>
           </div>
-          {lines.map((line, i) => (
-            <div
-              key={i}
-              className="flex flex-wrap items-end gap-2 rounded-md border border-zinc-200 p-3"
-            >
-              <label className="min-w-[160px] flex-1 text-xs">
-                Produto
-                <select
-                  value={line.productId}
-                  onChange={(e) => updateLine(i, { productId: e.target.value })}
-                  className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+          {lines.map((line, i) => {
+            const available = availableForLine(line);
+            const requested = parseFloat(line.quantity || "0");
+            const insufficient =
+              available !== null &&
+              Number.isFinite(requested) &&
+              requested > available;
+            return (
+              <div
+                key={i}
+                className={`flex flex-wrap items-end gap-2 rounded-md border p-3 ${
+                  insufficient ? "border-red-300 bg-red-50/40" : "border-zinc-200"
+                }`}
+              >
+                <label className="min-w-[160px] flex-1 text-xs">
+                  Produto
+                  <select
+                    value={line.productId}
+                    onChange={(e) => updateLine(i, { productId: e.target.value })}
+                    className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  >
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="w-20 text-xs">
+                  Quantidade
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    value={line.quantity}
+                    onChange={(e) => updateLine(i, { quantity: e.target.value })}
+                    className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                    required
+                  />
+                </label>
+                <label className="w-24 text-xs">
+                  Unidade
+                  <select
+                    value={line.unit}
+                    onChange={(e) =>
+                      updateLine(i, { unit: e.target.value as Line["unit"] })
+                    }
+                    className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  >
+                    <option value="UN">UN</option>
+                    <option value="CX">CX</option>
+                    <option value="PAL">PAL</option>
+                  </select>
+                </label>
+                <label className="w-24 text-xs">
+                  Setor origem
+                  <select
+                    value={line.sector}
+                    onChange={(e) =>
+                      updateLine(i, {
+                        sector: e.target.value as Line["sector"],
+                      })
+                    }
+                    className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
+                  >
+                    {(["A", "B", "C", "D"] as const).map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div
+                  className={`ml-auto rounded px-2 py-1 text-xs tabular-nums ${
+                    available === null
+                      ? "bg-zinc-100 text-zinc-500"
+                      : insufficient
+                      ? "bg-red-100 font-semibold text-red-800"
+                      : "bg-emerald-50 text-emerald-800"
+                  }`}
+                  aria-live="polite"
                 >
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="w-20 text-xs">
-                Quantidade
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  value={line.quantity}
-                  onChange={(e) => updateLine(i, { quantity: e.target.value })}
-                  className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                  required
-                />
-              </label>
-              <label className="w-24 text-xs">
-                Unidade
-                <select
-                  value={line.unit}
-                  onChange={(e) =>
-                    updateLine(i, { unit: e.target.value as Line["unit"] })
-                  }
-                  className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                >
-                  <option value="UN">UN</option>
-                  <option value="CX">CX</option>
-                  <option value="PAL">PAL</option>
-                </select>
-              </label>
-              <label className="w-24 text-xs">
-                Setor origem
-                <select
-                  value={line.sector}
-                  onChange={(e) =>
-                    updateLine(i, {
-                      sector: e.target.value as Line["sector"],
-                    })
-                  }
-                  className="mt-1 w-full rounded border border-zinc-300 bg-white px-2 py-1.5 text-sm"
-                >
-                  {(["A", "B", "C", "D"] as const).map((s) => (
-                    <option key={s} value={s}>
-                      {s}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-          ))}
+                  {stockLoading
+                    ? "Saldo…"
+                    : available === null
+                    ? "Saldo —"
+                    : `Disponível: ${available} ${line.unit}`}
+                </div>
+              </div>
+            );
+          })}
         </div>
 
         {stockAlert && (

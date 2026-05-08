@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { fetchJson } from "@/lib/api";
+import { api } from "@/lib/api";
 import { formatDateTimePtBr } from "@/lib/format";
 import { PrintButton } from "./PrintButton";
 
@@ -51,7 +51,7 @@ async function publicAppOrigin() {
 
 async function loadInbound(id: string): Promise<Inbound> {
   try {
-    return await fetchJson<Inbound>(`/inbounds/${id}`);
+    return await api<Inbound>(`/inbounds/${id}`);
   } catch {
     notFound();
   }
@@ -65,8 +65,8 @@ export default async function FolhaPage({
   const { id } = await params;
   const row = await loadInbound(id);
 
-  const folhaUrl = `${await publicAppOrigin()}/entradas/${row.id}/folha`;
-  const qrDataUrl = await QRCode.toDataURL(folhaUrl, {
+  const publicUrl = `${await publicAppOrigin()}/p/entradas/${row.id}`;
+  const qrDataUrl = await QRCode.toDataURL(publicUrl, {
     margin: 1,
     width: 240,
     errorCorrectionLevel: "M",
@@ -203,14 +203,15 @@ export default async function FolhaPage({
             />
           </div>
           <div className="min-w-0 max-w-md flex-1 text-xs text-zinc-600">
-            <p className="break-all font-mono">{folhaUrl}</p>
+            <p className="break-all font-mono">{publicUrl}</p>
             <p className="mt-2">
-              Escaneie para abrir a mesma página no celular (use o endereço público
-              da aplicação; ajuste{" "}
+              Esse QR abre uma página <strong>somente leitura</strong> com os dados
+              desta entrada — ideal para conferência no barracão sem expor o resto
+              do sistema. Use o endereço público correto em{" "}
               <code className="rounded bg-zinc-100 px-1">
                 NEXT_PUBLIC_APP_URL
-              </code>{" "}
-              se necessário).
+              </code>
+              .
             </p>
           </div>
         </section>

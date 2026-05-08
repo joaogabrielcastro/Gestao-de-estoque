@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useToast } from "@/components/ui/ToastProvider";
-import { requestJson } from "@/lib/api";
+import { api } from "@/lib/api";
 
 type Status = "ARMAZENADA" | "SEPARADA" | "RETIRADA";
 
@@ -27,7 +27,7 @@ export function InboundStatusSelect({
     setStatus(nextStatus);
     setLoading(true);
     try {
-      await requestJson(`/inbounds/${inboundId}/status`, {
+      await api(`/inbounds/${inboundId}/status`, {
         method: "PATCH",
         body: { status: nextStatus },
       });

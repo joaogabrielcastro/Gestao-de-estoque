@@ -1,6 +1,7 @@
-import { MovementType, PackUnit, Prisma, Sector } from "@prisma/client";
+import { MovementType, PackUnit, Sector } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "../lib/prisma";
+import { paginated } from "../lib/pagination";
 
 const filterSchema = z.object({
   clientId: z.string().uuid().optional(),
@@ -12,17 +13,6 @@ const filterSchema = z.object({
   to: z.coerce.date().optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
-});
-
-/** Limite maior que movimentações: export CSV e relatórios paginam em lotes (ex.: 1000). */
-const stockFilterSchema = z.object({
-  clientId: z.string().uuid().optional(),
-  productId: z.string().uuid().optional(),
-  sector: z.nativeEnum(Sector).optional(),
-  unit: z.nativeEnum(PackUnit).optional(),
-  q: z.string().optional(),
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(10_000).default(20),
 });
 
 export async function listMovements(query: unknown) {
@@ -61,91 +51,5 @@ export async function listMovements(query: unknown) {
     clientName: cm.get(r.clientId) ?? r.clientId,
     productName: pm.get(r.productId) ?? r.productId,
   }));
-  return {
-    items,
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
-}
-
-/** Estoque atual: saldos > 0 com nomes */
-export async function getCurrentStockSnapshot(query?: unknown) {
-  const f = stockFilterSchema.parse(query ?? {});
-  const nameFilter = f.q?.trim();
-  const [clients, products] = await Promise.all([
-    prisma.client.findMany({
-      where: nameFilter
-        ? { name: { contains: nameFilter, mode: "insensitive" } }
-        : undefined,
-      select: { id: true, name: true },
-    }),
-    prisma.product.findMany({
-      where: nameFilter
-        ? { name: { contains: nameFilter, mode: "insensitive" } }
-        : undefined,
-      select: { id: true, name: true },
-    }),
-  ]);
-  const clientMap = new Map(clients.map((c) => [c.id, c.name]));
-  const productMap = new Map(products.map((p) => [p.id, p.name]));
-
-  const baseWhere: Prisma.StockBalanceWhereInput = {
-    quantity: { gt: 0 },
-    ...(f.clientId ? { clientId: f.clientId } : {}),
-    ...(f.productId ? { productId: f.productId } : {}),
-    ...(f.sector ? { sector: f.sector } : {}),
-    ...(f.unit ? { unit: f.unit } : {}),
-  };
-
-  let where: Prisma.StockBalanceWhereInput = baseWhere;
-
-  if (nameFilter) {
-    if (clients.length === 0 && products.length === 0) {
-      return {
-        items: [],
-        page: f.page,
-        pageSize: f.pageSize,
-        total: 0,
-        totalPages: 1,
-      };
-    }
-    const orClause: Prisma.StockBalanceWhereInput[] = [];
-    if (clients.length > 0) {
-      orClause.push({ clientId: { in: clients.map((c) => c.id) } });
-    }
-    if (products.length > 0) {
-      orClause.push({ productId: { in: products.map((p) => p.id) } });
-    }
-    where = {
-      AND: [baseWhere, { OR: orClause }],
-    };
-  }
-
-  const [rows, total] = await Promise.all([
-    prisma.stockBalance.findMany({
-      where,
-      orderBy: [{ clientId: "asc" }, { productId: "asc" }],
-      skip: (f.page - 1) * f.pageSize,
-      take: f.pageSize,
-    }),
-    prisma.stockBalance.count({ where }),
-  ]);
-
-  return {
-    items: rows.map((row) => ({
-      clientId: row.clientId,
-      clientName: clientMap.get(row.clientId) ?? row.clientId,
-      productId: row.productId,
-      productName: productMap.get(row.productId) ?? row.productId,
-      sector: row.sector,
-      unit: row.unit as PackUnit,
-      quantity: row.quantity.toString(),
-    })),
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
+  return paginated(items, f.page, f.pageSize, total);
 }

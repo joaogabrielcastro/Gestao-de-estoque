@@ -1,3 +1,5 @@
+import { badRequest } from "../lib/http-error";
+
 export function normalizeInvoiceNumber(value: string) {
   return value.trim().toLowerCase();
 }
@@ -11,11 +13,9 @@ export function assertNoDuplicateInvoiceNumbers(values: string[]) {
   for (const num of values) {
     const key = normalizeInvoiceNumber(num);
     if (seen.has(key)) {
-      const err = new Error(
+      throw badRequest(
         `Número de NF repetido na mesma entrada: "${num}". Remova duplicatas.`
       );
-      (err as { status?: number }).status = 400;
-      throw err;
     }
     seen.add(key);
   }

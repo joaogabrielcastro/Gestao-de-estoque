@@ -2,13 +2,14 @@ import { Prisma } from "@prisma/client";
 import { createOutboundSchema } from "@gestao/shared";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { notFound } from "../../lib/http-error";
+import { paginated } from "../../lib/pagination";
 import { assertPositiveQty } from "../../domain/stock-policy";
 import {
   aggregateDeltas,
-  decrementBalancesWithGuard,
-  incrementBalances,
-} from "../../repositories/stock-balance.repository";
-import * as outboundRepo from "../../repositories/outbound.repository";
+  assertEnoughStock,
+} from "../../services/stock.service";
+import * as outboundRepo from "./outbounds.repository";
 
 const outboundFilterSchema = z.object({
   clientId: z.string().uuid().optional(),
@@ -45,7 +46,7 @@ export async function createOutbound(body: unknown) {
         quantity: line.quantity,
       }))
     );
-    await decrementBalancesWithGuard(tx, outboundDeltas);
+    await assertEnoughStock(tx, outboundDeltas);
 
     const outbound = await outboundRepo.createOutboundWithRelations({
       tx,
@@ -124,41 +125,24 @@ export async function listOutbounds(filters: unknown) {
     pageSize: f.pageSize,
   });
 
-  return {
-    items,
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
+  return paginated(items, f.page, f.pageSize, total);
 }
 
 export async function getOutboundById(id: string) {
   return outboundRepo.findOutboundById(id);
 }
 
+/**
+ * Sempre deleta — apagar os movimentos da saída devolve naturalmente o estoque
+ * (o saldo é derivado de StockMovement). Antes precisávamos de uma chamada
+ * `incrementBalances` separada, agora isso some.
+ */
 export async function deleteOutbound(id: string) {
   const existing = await outboundRepo.findOutboundWithLines(id);
-  if (!existing) {
-    const err = new Error("Saída não encontrada");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!existing) throw notFound("Saída não encontrada");
 
   await prisma.$transaction(async (tx) => {
-    const restoreDeltas = aggregateDeltas(
-      existing.lines.map((line) => ({
-        clientId: existing.clientId,
-        productId: line.productId,
-        sector: line.sector,
-        unit: line.unit,
-        quantity: new Prisma.Decimal(line.quantity),
-      }))
-    );
-    await incrementBalances(tx, restoreDeltas);
-
     await outboundRepo.deleteOutboundMovements(id, tx);
-
     await outboundRepo.deleteOutboundById(id, tx);
   });
 }
@@ -167,11 +151,7 @@ export async function replaceOutbound(id: string, body: unknown) {
   const data = createOutboundSchema.parse(body);
 
   const existing = await outboundRepo.findOutboundWithLines(id);
-  if (!existing) {
-    const err = new Error("Saída não encontrada");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!existing) throw notFound("Saída não encontrada");
 
   const lineDecimals = data.lines.map((line) => {
     const quantity = new Prisma.Decimal(line.quantity);
@@ -185,21 +165,11 @@ export async function replaceOutbound(id: string, body: unknown) {
   });
 
   return prisma.$transaction(async (tx) => {
-    const restoreDeltas = aggregateDeltas(
-      existing.lines.map((line) => ({
-        clientId: existing.clientId,
-        productId: line.productId,
-        sector: line.sector,
-        unit: line.unit,
-        quantity: new Prisma.Decimal(line.quantity),
-      }))
-    );
-    await incrementBalances(tx, restoreDeltas);
-
+    // Apaga movimentos antigos: o saldo dentro da transação reflete a "devolução".
     await outboundRepo.deleteOutboundMovements(id, tx);
-
     await outboundRepo.deleteOutboundLines(id, tx);
 
+    // Agora valida que o saldo pós-devolução cobre os novos deltas.
     const outboundDeltas = aggregateDeltas(
       lineDecimals.map((line) => ({
         clientId: data.clientId,
@@ -209,7 +179,7 @@ export async function replaceOutbound(id: string, body: unknown) {
         quantity: line.quantity,
       }))
     );
-    await decrementBalancesWithGuard(tx, outboundDeltas);
+    await assertEnoughStock(tx, outboundDeltas);
 
     const outbound = await outboundRepo.updateOutboundWithRelations({
       tx,

@@ -6,11 +6,10 @@ import {
   HydrateListFilters,
   SaveFiltersForm,
 } from "@/components/ListFilters";
-import { QuickActions } from "@/components/QuickActions";
-import { fetchJson } from "@/lib/api";
+import { Pagination } from "@/components/Pagination";
+import { api } from "@/lib/api";
 import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
 import { formatDateTimePtBr } from "@/lib/format";
-import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -74,15 +73,15 @@ export default async function EntradasPage({
   let err: string | null = null;
   try {
     const [inboundsPayload, clientsPayload, productsPayload] = await Promise.all([
-      fetchJson<Paginated<Inbound>>(`/inbounds${q ? `?${q}` : ""}`),
-      fetchJson<Paginated<Client>>("/clients?page=1&pageSize=200"),
-      fetchJson<Paginated<Product>>("/products?page=1&pageSize=200"),
+      api<Paginated<Inbound>>(`/inbounds${q ? `?${q}` : ""}`),
+      api<Paginated<Client>>("/clients?page=1&pageSize=200"),
+      api<Paginated<Product>>("/products?page=1&pageSize=200"),
     ]);
     payload = inboundsPayload;
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = APP_MESSAGES.API_UNAVAILABLE;
+    err = "API indisponível.";
   }
 
   return (
@@ -100,7 +99,6 @@ export default async function EntradasPage({
           Nova entrada
         </Link>
       </div>
-      <QuickActions />
       <SaveFiltersForm
         action="/entradas"
         storageKey={FILTER_STORAGE.entradas}
@@ -236,24 +234,14 @@ export default async function EntradasPage({
           </li>
         ))}
       </ul>
-      {!err && payload.totalPages > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/entradas?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.max(1, payload.page - 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {payload.page} de {payload.totalPages} ({payload.total} itens)
-          </span>
-          <Link
-            href={`/entradas?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.min(payload.totalPages, payload.page + 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page >= payload.totalPages ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Próxima
-          </Link>
-        </div>
+      {!err && (
+        <Pagination
+          basePath="/entradas"
+          query={qs}
+          page={payload.page}
+          totalPages={payload.totalPages}
+          total={payload.total}
+        />
       )}
     </div>
   );

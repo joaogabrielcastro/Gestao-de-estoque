@@ -2,18 +2,19 @@ import { LoadStatus, Prisma } from "@prisma/client";
 import { createInboundSchema, updateInboundStatusSchema } from "@gestao/shared";
 import { z } from "zod";
 import { prisma } from "../../lib/prisma";
+import { conflict, notFound } from "../../lib/http-error";
+import { paginated } from "../../lib/pagination";
 import { assertPositiveQty } from "../../domain/stock-policy";
 import {
   assertNoDuplicateInvoiceNumbers,
   normalizeInvoiceNumber,
   sanitizeInvoiceNumbers,
 } from "../../domain/invoice-policy";
-import {
-  aggregateDeltas,
-  decrementBalancesWithGuard,
-  incrementBalances,
-} from "../../repositories/stock-balance.repository";
-import * as inboundRepo from "../../repositories/inbound.repository";
+import { assertNoNegativeBalances, uniqueKeys } from "../../services/stock.service";
+import * as inboundRepo from "./inbounds.repository";
+
+const DUPLICATE_INVOICE_MSG =
+  "Uma ou mais NFs informadas já estão registradas para este cliente.";
 
 export async function createInbound(body: unknown) {
   const data = createInboundSchema.parse(body);
@@ -68,27 +69,11 @@ export async function createInbound(body: unknown) {
         }))
       );
 
-      const inboundDeltas = aggregateDeltas(
-        inbound.lines.map((line) => ({
-          clientId: data.clientId,
-          productId: line.productId,
-          sector: data.sector,
-          unit: line.unit,
-          quantity: new Prisma.Decimal(line.quantity),
-        }))
-      );
-      await incrementBalances(tx, inboundDeltas);
-
       return inbound;
     });
   } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === "P2002") {
-      const conflict = new Error(
-        "Uma ou mais NFs informadas já estão registradas para este cliente."
-      );
-      (conflict as { status?: number }).status = 409;
-      throw conflict;
+    if ((err as { code?: string }).code === "P2002") {
+      throw conflict(DUPLICATE_INVOICE_MSG, "DUPLICATE_INVOICE");
     }
     throw err;
   }
@@ -132,13 +117,7 @@ export async function listInbounds(filters: unknown) {
     pageSize: f.pageSize,
   });
 
-  return {
-    items,
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
+  return paginated(items, f.page, f.pageSize, total);
 }
 
 export async function updateInboundStatus(id: string, body: unknown) {
@@ -150,28 +129,18 @@ export async function getInboundById(id: string) {
   return inboundRepo.findInboundById(id);
 }
 
+/**
+ * Sempre deleta — não falha por "saldo insuficiente". Apagar os movimentos da
+ * entrada já reflete a devolução no saldo derivado. Se isso deixar alguma
+ * posição com saldo < 0 (porque parte já saiu via Outbound), o snapshot vai
+ * filtrar (> 0) e o time corrige no fluxo normal de operação.
+ */
 export async function deleteInbound(id: string) {
   const existing = await inboundRepo.findInboundWithLines(id);
-  if (!existing) {
-    const err = new Error("Entrada não encontrada");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!existing) throw notFound("Entrada não encontrada");
 
   await prisma.$transaction(async (tx) => {
-    const oldDeltas = aggregateDeltas(
-      existing.lines.map((line) => ({
-        clientId: existing.clientId,
-        productId: line.productId,
-        sector: existing.sector,
-        unit: line.unit,
-        quantity: new Prisma.Decimal(line.quantity),
-      }))
-    );
-    await decrementBalancesWithGuard(tx, oldDeltas);
-
     await inboundRepo.deleteInboundMovements(id, tx);
-
     await inboundRepo.deleteInboundById(id, tx);
   });
 }
@@ -181,11 +150,7 @@ export async function replaceInbound(id: string, body: unknown) {
   const occurredAt = new Date();
 
   const existing = await inboundRepo.findInboundWithLines(id);
-  if (!existing) {
-    const err = new Error("Entrada não encontrada");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!existing) throw notFound("Entrada não encontrada");
 
   const invoiceNumbers = sanitizeInvoiceNumbers(data.invoiceNumbers);
   assertNoDuplicateInvoiceNumbers(invoiceNumbers);
@@ -200,21 +165,27 @@ export async function replaceInbound(id: string, body: unknown) {
     };
   });
 
+  const oldKeys = uniqueKeys(
+    existing.lines.map((line) => ({
+      clientId: existing.clientId,
+      productId: line.productId,
+      sector: existing.sector,
+      unit: line.unit,
+    }))
+  );
+  const newKeys = uniqueKeys(
+    lineDecimals.map((line) => ({
+      clientId: data.clientId,
+      productId: line.productId,
+      sector: data.sector,
+      unit: line.unit,
+    }))
+  );
+  const affectedKeys = uniqueKeys([...oldKeys, ...newKeys]);
+
   try {
     return await prisma.$transaction(async (tx) => {
-      const oldDeltas = aggregateDeltas(
-        existing.lines.map((line) => ({
-          clientId: existing.clientId,
-          productId: line.productId,
-          sector: existing.sector,
-          unit: line.unit,
-          quantity: new Prisma.Decimal(line.quantity),
-        }))
-      );
-      await decrementBalancesWithGuard(tx, oldDeltas);
-
       await inboundRepo.deleteInboundMovements(id, tx);
-
       await inboundRepo.replaceInboundRelations(id, tx);
 
       const inbound = await inboundRepo.updateInboundWithRelations({
@@ -252,27 +223,15 @@ export async function replaceInbound(id: string, body: unknown) {
         }))
       );
 
-      const inboundDeltas = aggregateDeltas(
-        inbound.lines.map((line) => ({
-          clientId: data.clientId,
-          productId: line.productId,
-          sector: data.sector,
-          unit: line.unit,
-          quantity: new Prisma.Decimal(line.quantity),
-        }))
-      );
-      await incrementBalances(tx, inboundDeltas);
+      // Se a edição reduziu/moveu produtos e parte já saiu via Outbound,
+      // alguma posição afetada pode ter ficado negativa: nesse caso aborta tudo.
+      await assertNoNegativeBalances(tx, affectedKeys);
 
       return inbound;
     });
   } catch (err) {
-    const code = (err as { code?: string }).code;
-    if (code === "P2002") {
-      const conflict = new Error(
-        "Uma ou mais NFs informadas já estão registradas para este cliente."
-      );
-      (conflict as { status?: number }).status = 409;
-      throw conflict;
+    if ((err as { code?: string }).code === "P2002") {
+      throw conflict(DUPLICATE_INVOICE_MSG, "DUPLICATE_INVOICE");
     }
     throw err;
   }

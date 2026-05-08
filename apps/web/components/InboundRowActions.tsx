@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DeleteConfirmButton, fetchDelete } from "@/components/DeleteConfirmButton";
+import { DeleteConfirmButton } from "@/components/DeleteConfirmButton";
+import { api } from "@/lib/api";
 
 export function InboundRowActions({ id }: { id: string }) {
   const router = useRouter();
@@ -17,9 +18,9 @@ export function InboundRowActions({ id }: { id: string }) {
       </Link>
       <DeleteConfirmButton
         title="Excluir esta entrada?"
-        description="O estoque será ajustado (como se a carga não tivesse entrado). Não é possível desfazer."
+        description="Os movimentos desta entrada serão apagados. Como o saldo é calculado direto das movimentações, ele se ajusta sozinho — pode ficar zerado em alguma posição se parte já tinha saído."
         onDelete={async () => {
-          await fetchDelete(`/inbounds/${id}`);
+          await api(`/inbounds/${id}`, { method: "DELETE" });
           router.refresh();
         }}
       />

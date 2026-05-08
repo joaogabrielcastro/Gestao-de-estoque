@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const searchEnabled = process.env.NEXT_PUBLIC_ENABLE_GLOBAL_SEARCH === "true";
-
 const links = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/guia", label: "Guia" },
@@ -15,7 +13,6 @@ const links = [
   { href: "/clientes", label: "Clientes" },
   { href: "/produtos", label: "Produtos" },
   { href: "/relatorios", label: "Relatórios" },
-  ...(searchEnabled ? [{ href: "/busca", label: "Busca" } as const] : []),
 ];
 
 function isNavActive(pathname: string, href: string) {
@@ -30,6 +27,10 @@ function isNavActive(pathname: string, href: string) {
 
 export function Nav() {
   const pathname = usePathname();
+
+  if (pathname?.startsWith("/p/")) {
+    return null;
+  }
 
   return (
     <header className="border-b border-zinc-200 bg-white">

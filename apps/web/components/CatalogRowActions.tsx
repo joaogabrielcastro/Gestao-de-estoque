@@ -2,8 +2,8 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { requestJson } from "@/lib/api";
-import { DeleteConfirmButton, fetchDelete } from "@/components/DeleteConfirmButton";
+import { api } from "@/lib/api";
+import { DeleteConfirmButton } from "@/components/DeleteConfirmButton";
 import { Spinner } from "@/components/ui/Spinner";
 import { useToast } from "@/components/ui/ToastProvider";
 
@@ -31,7 +31,7 @@ export function CatalogRowActions({
     }
     setSaving(true);
     try {
-      await requestJson(`${base}/${id}`, {
+      await api(`${base}/${id}`, {
         method: "PATCH",
         body: { name: trimmed },
       });
@@ -65,7 +65,7 @@ export function CatalogRowActions({
             : "Só é permitido se o produto não estiver em nenhuma entrada nem retirada registrada."
         }
         onDelete={async () => {
-          await fetchDelete(`${base}/${id}`);
+          await api(`${base}/${id}`, { method: "DELETE" });
           router.refresh();
         }}
       />

@@ -1,5 +1,7 @@
 import { createClientSchema } from "@gestao/shared";
 import { z } from "zod";
+import { conflict, notFound } from "../../lib/http-error";
+import { paginated } from "../../lib/pagination";
 import * as repo from "./clients.repository";
 
 const listClientsSchema = z.object({
@@ -26,13 +28,7 @@ export async function listClients(query?: unknown) {
     sort: f.sort,
   });
 
-  return {
-    items,
-    page: f.page,
-    pageSize: f.pageSize,
-    total,
-    totalPages: Math.max(1, Math.ceil(total / f.pageSize)),
-  };
+  return paginated(items, f.page, f.pageSize, total);
 }
 
 export async function createClient(body: unknown) {
@@ -51,17 +47,12 @@ export async function updateClient(id: string, body: unknown) {
 
 export async function deleteClient(id: string) {
   const row = await repo.findClientDeleteDependencies(id);
-  if (!row) {
-    const err = new Error("Cliente não encontrado");
-    (err as { status?: number }).status = 404;
-    throw err;
-  }
+  if (!row) throw notFound("Cliente não encontrado");
   if (row._count.inbounds > 0 || row._count.outbounds > 0) {
-    const err = new Error(
-      "Não é possível excluir: existem entradas ou saídas vinculadas a este cliente."
+    throw conflict(
+      "Não é possível excluir: existem entradas ou saídas vinculadas a este cliente.",
+      "HAS_DEPENDENCIES"
     );
-    (err as { status?: number }).status = 409;
-    throw err;
   }
   await repo.deleteClientById(id);
 }

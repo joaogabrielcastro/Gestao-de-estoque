@@ -1,5 +1,9 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
-import { prisma } from "../lib/prisma";
+import {
+  type Prisma,
+  type PrismaClient,
+  ReferenceType,
+} from "@prisma/client";
+import { prisma } from "../../lib/prisma";
 
 type DbClient = PrismaClient | Prisma.TransactionClient;
 
@@ -61,7 +65,7 @@ export async function createInboundStockMovements(
           quantity: m.quantity,
           unit: m.unit,
           sector: m.sector,
-          referenceType: "INBOUND",
+          referenceType: ReferenceType.INBOUND,
           referenceId: m.referenceId,
         },
       })
@@ -119,7 +123,7 @@ export async function findInboundWithLines(id: string, tx?: Prisma.TransactionCl
 
 export async function deleteInboundMovements(id: string, tx: Prisma.TransactionClient) {
   await tx.stockMovement.deleteMany({
-    where: { referenceType: "INBOUND", referenceId: id },
+    where: { referenceType: ReferenceType.INBOUND, referenceId: id },
   });
 }
 

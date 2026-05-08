@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { DeleteConfirmButton, fetchDelete } from "@/components/DeleteConfirmButton";
+import { DeleteConfirmButton } from "@/components/DeleteConfirmButton";
+import { api } from "@/lib/api";
 
 export function OutboundRowActions({ id }: { id: string }) {
   const router = useRouter();
@@ -17,9 +18,9 @@ export function OutboundRowActions({ id }: { id: string }) {
       </Link>
       <DeleteConfirmButton
         title="Excluir esta saída?"
-        description="O estoque será devolvido (como se a retirada não tivesse ocorrido). Não é possível desfazer."
+        description="Os movimentos desta retirada serão apagados; o estoque retorna ao saldo automaticamente. Esta exclusão sempre é aceita."
         onDelete={async () => {
-          await fetchDelete(`/outbounds/${id}`);
+          await api(`/outbounds/${id}`, { method: "DELETE" });
           router.refresh();
         }}
       />

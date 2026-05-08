@@ -3,13 +3,11 @@ import {
   HydrateListFilters,
   SaveFiltersForm,
 } from "@/components/ListFilters";
-import { QuickActions } from "@/components/QuickActions";
-import { fetchJson } from "@/lib/api";
+import { Pagination } from "@/components/Pagination";
+import { api } from "@/lib/api";
 import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
 import { formatDateTimePtBr } from "@/lib/format";
-import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -75,15 +73,15 @@ export default async function MovimentacoesPage({
   let err: string | null = null;
   try {
     const [movementsPayload, clientsPayload, productsPayload] = await Promise.all([
-      fetchJson<Paginated<Movement>>(`/movements${q ? `?${q}` : ""}`),
-      fetchJson<Paginated<Client>>("/clients?page=1&pageSize=200"),
-      fetchJson<Paginated<Product>>("/products?page=1&pageSize=200"),
+      api<Paginated<Movement>>(`/movements${q ? `?${q}` : ""}`),
+      api<Paginated<Client>>("/clients?page=1&pageSize=200"),
+      api<Paginated<Product>>("/products?page=1&pageSize=200"),
     ]);
     payload = movementsPayload;
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = APP_MESSAGES.API_UNAVAILABLE;
+    err = "API indisponível.";
   }
 
   return (
@@ -97,7 +95,6 @@ export default async function MovimentacoesPage({
         Histórico com data e hora para conferência de NF e saldo.{" "}
         <strong>Entrada</strong> aumenta estoque; <strong>saída</strong> retira.
       </p>
-      <QuickActions />
       <SaveFiltersForm
         action="/movimentacoes"
         storageKey={FILTER_STORAGE.movimentacoes}
@@ -300,24 +297,14 @@ export default async function MovimentacoesPage({
           </li>
         ))}
       </ul>
-      {!err && payload.totalPages > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/movimentacoes?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.max(1, payload.page - 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {payload.page} de {payload.totalPages} ({payload.total} itens)
-          </span>
-          <Link
-            href={`/movimentacoes?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.min(payload.totalPages, payload.page + 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page >= payload.totalPages ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Próxima
-          </Link>
-        </div>
+      {!err && (
+        <Pagination
+          basePath="/movimentacoes"
+          query={qs}
+          page={payload.page}
+          totalPages={payload.totalPages}
+          total={payload.total}
+        />
       )}
     </div>
   );

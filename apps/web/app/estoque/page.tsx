@@ -1,13 +1,11 @@
-import Link from "next/link";
 import {
   ClearFiltersLink,
   HydrateListFilters,
   SaveFiltersForm,
 } from "@/components/ListFilters";
-import { QuickActions } from "@/components/QuickActions";
-import { fetchJson } from "@/lib/api";
+import { Pagination } from "@/components/Pagination";
+import { api } from "@/lib/api";
 import { FILTER_STORAGE } from "@/lib/filter-storage-keys";
-import { APP_MESSAGES } from "@/lib/messages";
 import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -64,15 +62,15 @@ export default async function EstoquePage({
   let err: string | null = null;
   try {
     const [stockPayload, clientsPayload, productsPayload] = await Promise.all([
-      fetchJson<Paginated<StockRow>>(`/stock${q ? `?${q}` : ""}`),
-      fetchJson<Paginated<Client>>("/clients?page=1&pageSize=200"),
-      fetchJson<Paginated<Product>>("/products?page=1&pageSize=200"),
+      api<Paginated<StockRow>>(`/stock${q ? `?${q}` : ""}`),
+      api<Paginated<Client>>("/clients?page=1&pageSize=200"),
+      api<Paginated<Product>>("/products?page=1&pageSize=200"),
     ]);
     payload = stockPayload;
     clients = clientsPayload.items;
     products = productsPayload.items;
   } catch {
-    err = APP_MESSAGES.API_UNAVAILABLE;
+    err = "API indisponível.";
   }
 
   return (
@@ -81,12 +79,14 @@ export default async function EstoquePage({
         storageKey={FILTER_STORAGE.estoque}
         applyWhenEmpty={!hasUrlFilters}
       />
-      <h1 className="page-title">Estoque no barracão</h1>
-      <p className="text-sm text-zinc-600">
-        Saldo por cliente, produto, setor e unidade (UN/CX/PAL). Os filtros podem ser
-        lembrados neste aparelho após você clicar em Filtrar.
-      </p>
-      <QuickActions />
+      <div>
+        <h1 className="page-title">Estoque no barracão</h1>
+        <p className="text-sm text-zinc-600">
+          Saldo por cliente, produto, setor e unidade (UN/CX/PAL). É calculado direto
+          do histórico de movimentações — sem cache, sem divergência. Os filtros podem
+          ser lembrados neste aparelho após você clicar em Filtrar.
+        </p>
+      </div>
       <SaveFiltersForm action="/estoque" storageKey={FILTER_STORAGE.estoque}>
       <div className="grid gap-3 rounded-lg border border-zinc-200 bg-white p-3 sm:grid-cols-6">
         <label className="text-xs text-zinc-600">
@@ -240,24 +240,14 @@ export default async function EstoquePage({
           </li>
         ))}
       </ul>
-      {!err && payload.totalPages > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/estoque?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.max(1, payload.page - 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {payload.page} de {payload.totalPages} ({payload.total} itens)
-          </span>
-          <Link
-            href={`/estoque?${new URLSearchParams({ ...Object.fromEntries(qs), page: String(Math.min(payload.totalPages, payload.page + 1)) }).toString()}`}
-            className={`rounded border px-3 py-1 ${payload.page >= payload.totalPages ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Próxima
-          </Link>
-        </div>
+      {!err && (
+        <Pagination
+          basePath="/estoque"
+          query={qs}
+          page={payload.page}
+          totalPages={payload.totalPages}
+          total={payload.total}
+        />
       )}
     </div>
   );

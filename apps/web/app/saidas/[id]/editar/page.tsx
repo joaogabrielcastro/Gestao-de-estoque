@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { SaidaForm } from "@/components/SaidaForm";
-import { fetchJson } from "@/lib/api";
+import { api } from "@/lib/api";
 
 export const metadata = {
   title: "Editar saída — Gestão de estoque",
@@ -30,7 +30,7 @@ export default async function EditarSaidaPage({
   const { id } = await params;
   let row: Outbound;
   try {
-    row = await fetchJson<Outbound>(`/outbounds/${id}`);
+    row = await api<Outbound>(`/outbounds/${id}`);
   } catch {
     notFound();
   }

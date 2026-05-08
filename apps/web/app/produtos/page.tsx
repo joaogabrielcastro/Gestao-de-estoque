@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { CatalogRowActions } from "@/components/CatalogRowActions";
+import { Pagination } from "@/components/Pagination";
 import { ProdutoForm } from "@/components/ProdutoForm";
-import { fetchJson } from "@/lib/api";
-import { APP_MESSAGES } from "@/lib/messages";
+import { api } from "@/lib/api";
 import type { Paginated } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -25,11 +24,11 @@ export default async function ProdutosPage({
   };
   let err: string | null = null;
   try {
-    payload = await fetchJson<Paginated<Product>>(
+    payload = await api<Paginated<Product>>(
       `/products?page=${Math.max(1, page)}&pageSize=20`
     );
   } catch {
-    err = APP_MESSAGES.API_UNAVAILABLE;
+    err = "API indisponível.";
   }
 
   return (
@@ -62,24 +61,14 @@ export default async function ProdutosPage({
           </li>
         ))}
       </ul>
-      {!err && payload.totalPages > 1 && (
-        <div className="flex items-center gap-2 text-sm">
-          <Link
-            href={`/produtos?page=${Math.max(1, payload.page - 1)}`}
-            className={`rounded border px-3 py-1 ${payload.page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Anterior
-          </Link>
-          <span>
-            Página {payload.page} de {payload.totalPages} ({payload.total} itens)
-          </span>
-          <Link
-            href={`/produtos?page=${Math.min(payload.totalPages, payload.page + 1)}`}
-            className={`rounded border px-3 py-1 ${payload.page >= payload.totalPages ? "pointer-events-none opacity-50" : ""}`}
-          >
-            Próxima
-          </Link>
-        </div>
+      {!err && (
+        <Pagination
+          basePath="/produtos"
+          query={new URLSearchParams()}
+          page={payload.page}
+          totalPages={payload.totalPages}
+          total={payload.total}
+        />
       )}
     </div>
   );
