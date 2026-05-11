@@ -17,7 +17,7 @@ RUN npm run build -w @gestao/shared \
 
 FROM node:20-alpine AS runner
 WORKDIR /app
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl postgresql-client
 
 ENV NODE_ENV=production
 
@@ -31,4 +31,4 @@ COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
 
 EXPOSE 3011
 # Comando inline evita falhas no Windows quando scripts .sh são salvos com CRLF
-CMD ["sh", "-c", "cd /app/apps/api && npx prisma db push && exec node dist/index.js"]
+CMD ["sh", "-c", "cd /app/apps/api && if [ -n \"$DATABASE_URL\" ]; then psql \"$DATABASE_URL\" -v ON_ERROR_STOP=1 -f prisma/manual-migrations/2026-05-08-reference-type-enum-and-indexes.sql; fi && npx prisma db push && exec node dist/index.js"]
