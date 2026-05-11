@@ -1,8 +1,13 @@
--- Migração idempotente: String -> enum ReferenceType em StockMovement + índices.
--- Roda antes de `prisma db push` no Docker para evitar loop de falha em DBs antigos.
--- Em DB novo (sem tabelas), os blocos no-op; o `db push` cria o schema.
+-- Migração idempotente antes de `prisma db push` no Docker:
+--   0) Remove tabela legada StockBalance (saldo vem só de StockMovement; evita --accept-data-loss).
+--   1) String -> enum ReferenceType em StockMovement.
+--   2) Índices Inbound / Outbound / StockMovement alinhados ao schema atual.
+-- Em DB novo, DROP/ALTER no-op onde não aplicável.
 
 BEGIN;
+
+-- 0) Tabela removida do Prisma; manter no Postgres faz o db push exigir --accept-data-loss
+DROP TABLE IF EXISTS "StockBalance" CASCADE;
 
 -- 1) Enum
 DO $$

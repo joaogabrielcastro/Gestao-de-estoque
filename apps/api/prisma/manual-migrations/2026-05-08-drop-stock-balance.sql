@@ -1,4 +1,6 @@
 -- Migração manual: remove a tabela `StockBalance`.
+-- No deploy Docker, o mesmo DROP já roda em
+-- `manual-migrations/2026-05-08-reference-type-enum-and-indexes.sql` antes do `db push`.
 --
 -- Contexto: o saldo agora é DERIVADO de StockMovement (SUM ENTRADA − SUM SAIDA
 -- por cliente/produto/setor/unidade). Toda leitura é on-the-fly. Não há mais
